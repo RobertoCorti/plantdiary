@@ -1,6 +1,6 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: M3 — Today Screen (COMPLETE)
+## Current milestone: M4 — Plant Profile (COMPLETE)
 ## Last session: 2026-06-03
 
 ### What's done
@@ -47,14 +47,30 @@
   - One-tap "Water" button on cards needing attention — optimistic UI update, persists to Supabase
 - TypeScript compiles cleanly (`npx tsc --noEmit` passes)
 
-### What's in progress
-- Nothing — M3 is complete
+#### M4 — Plant Profile (COMPLETE)
+- Added `PlantProfile: { plantId: string }` route to `RootStackParamList` (exported from App.tsx)
+- Expanded `src/lib/events.ts` with `logEvent()` (generic event insert, updates `last_watered_at` when type is "watered") and `fetchPlantEvents()` (ordered by `created_at` desc)
+- Created `src/screens/PlantProfileScreen.tsx`:
+  - Hero plant photo with overlaid back button
+  - Plant name, species, location, watering status badge (reuses STATUS_CONFIG pattern)
+  - Care stats row: average watering interval (computed from watered event timestamps), event count last 30 days
+  - Event timeline: FlatList with icon per event type, relative timestamps ("2h ago", "3d ago"), notes display
+  - Fixed "+ Log Event" button at bottom opens Modal with event type picker (watered/fertilized/repotted/observation), optional notes TextInput, cancel/save actions
+  - New events appear in timeline immediately after logging
+- HomeScreen plant cards wrapped in `Pressable` — tapping navigates to PlantProfile with `plantId`
+- HomeScreen navigation prop typed with `NativeStackNavigationProp<RootStackParamList, "Home">`
+- TypeScript compiles cleanly (`npx tsc --noEmit` passes)
+- Tested end-to-end: navigation, display, event logging, back navigation all working
 
-### Next steps (M4 — Plant Profile)
-1. Plant profile screen with photo, nickname, species, location
-2. Timeline of events (watered, fertilized, observations, photos)
-3. Care stats: average watering interval, last 30 days activity
-4. "Log event" button: watered / fertilized / repotted / take photo
+### What's in progress
+- Nothing — M4 is complete
+
+### Next steps (M5 — Photo Check-In)
+1. Take a new photo of a plant from PlantProfileScreen
+2. Upload photo to Supabase Storage
+3. Call AI (Anthropic vision) to analyze plant health, compare to previous photos/notes
+4. Display AI analysis: status (healthy/monitor/concern), observations, recommended action
+5. Save photo event with AI analysis to plant_events
 
 ### Key decisions made
 - Using `expo-secure-store` for auth token persistence on native (falls back to default on web)
@@ -70,21 +86,25 @@
 - Watering logic: simple date math (`last_watered_at + watering_frequency_days` vs today). No AI recommendations yet (deferred to M5).
 - Weather: displayed as context only, does not factor into watering logic yet (deferred to M5).
 - Open-Meteo API: free, no API key needed. Endpoint: `https://api.open-meteo.com/v1/forecast?latitude=X&longitude=Y&current=temperature_2m,relative_humidity_2m,precipitation`
+- `RootStackParamList` exported from App.tsx so screens can import it for typed navigation props
+- PlantProfileScreen uses a Modal for event logging (no external dependencies)
+- `logEvent()` is the generic version; `logWatering()` kept for backward compatibility with HomeScreen's one-tap water flow
 
 ### Project structure
 ```
 plantdiary/
-├── App.tsx                  # Root: typed navigator + auth state
+├── App.tsx                  # Root: typed navigator + auth state, exports RootStackParamList
 ├── src/
 │   ├── lib/
 │   │   ├── supabase.ts      # Supabase client config
 │   │   ├── watering.ts      # getWateringStatus(), daysSinceWatered()
 │   │   ├── weather.ts       # fetchWeather() — Open-Meteo API
-│   │   └── events.ts        # logWatering() — insert event + update plant
+│   │   └── events.ts        # logWatering(), logEvent(), fetchPlantEvents()
 │   ├── screens/
 │   │   ├── AuthScreen.tsx    # Sign up / log in
-│   │   ├── HomeScreen.tsx    # Today Screen: weather + watering status + water button
-│   │   └── AddPlantScreen.tsx # Photo → AI ID → save plant
+│   │   ├── HomeScreen.tsx    # Today Screen: weather + watering status + tappable plant cards
+│   │   ├── AddPlantScreen.tsx # Photo → AI ID → save plant
+│   │   └── PlantProfileScreen.tsx # Plant details, care stats, event timeline, log event
 │   └── types/
 │       └── index.ts          # Plant, PlantEvent, WateringStatus, WeatherData, AIIdentificationResult
 ├── supabase/
