@@ -10,10 +10,12 @@ import { supabase } from "./src/lib/supabase";
 import AuthScreen from "./src/screens/AuthScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import AddPlantScreen from "./src/screens/AddPlantScreen";
+import PlantProfileScreen from "./src/screens/PlantProfileScreen";
 
-type RootStackParamList = {
+export type RootStackParamList = {
   Home: undefined;
   AddPlant: undefined;
+  PlantProfile: { plantId: string };
   Auth: undefined;
 };
 
@@ -49,6 +51,15 @@ export default function App() {
             <Stack.Screen name="Home">
               {(props: NativeStackScreenProps<RootStackParamList, "Home">) => (
                 <HomeScreen session={session} navigation={props.navigation} />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="PlantProfile">
+              {(props: NativeStackScreenProps<RootStackParamList, "PlantProfile">) => (
+                <PlantProfileScreen
+                  session={session}
+                  plantId={props.route.params.plantId}
+                  navigation={props.navigation}
+                />
               )}
             </Stack.Screen>
             <Stack.Screen name="AddPlant" options={{ presentation: "modal" }}>

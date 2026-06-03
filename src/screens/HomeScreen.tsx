@@ -9,7 +9,9 @@ import {
   View,
 } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Session } from "@supabase/supabase-js";
+import type { RootStackParamList } from "../../App";
 import * as Location from "expo-location";
 import { supabase } from "../lib/supabase";
 import { getWateringStatus, daysSinceWatered } from "../lib/watering";
@@ -19,7 +21,7 @@ import type { Plant, WateringStatus, WeatherData } from "../types";
 
 type Props = {
   session: Session;
-  navigation: { navigate: (screen: string) => void };
+  navigation: NativeStackNavigationProp<RootStackParamList, "Home">;
 };
 
 const STATUS_ORDER: Record<WateringStatus, number> = {
@@ -163,7 +165,12 @@ export default function HomeScreen({ session, navigation }: Props) {
     const isWatering = wateringPlantId === item.id;
 
     return (
-      <View style={styles.card}>
+      <Pressable
+        style={styles.card}
+        onPress={() =>
+          navigation.navigate("PlantProfile", { plantId: item.id })
+        }
+      >
         {item.photo_url ? (
           <Image source={{ uri: item.photo_url }} style={styles.cardImage} />
         ) : (
@@ -204,7 +211,7 @@ export default function HomeScreen({ session, navigation }: Props) {
             )}
           </Pressable>
         )}
-      </View>
+      </Pressable>
     );
   }
 
