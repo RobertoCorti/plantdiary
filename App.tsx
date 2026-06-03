@@ -1,13 +1,23 @@
 import { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import {
+  createNativeStackNavigator,
+  NativeStackScreenProps,
+} from "@react-navigation/native-stack";
 import { Session } from "@supabase/supabase-js";
 import { StatusBar } from "expo-status-bar";
 import { supabase } from "./src/lib/supabase";
 import AuthScreen from "./src/screens/AuthScreen";
 import HomeScreen from "./src/screens/HomeScreen";
+import AddPlantScreen from "./src/screens/AddPlantScreen";
 
-const Stack = createNativeStackNavigator();
+type RootStackParamList = {
+  Home: undefined;
+  AddPlant: undefined;
+  Auth: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -35,9 +45,21 @@ export default function App() {
       <StatusBar style="dark" />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session ? (
-          <Stack.Screen name="Home">
-            {() => <HomeScreen session={session} />}
-          </Stack.Screen>
+          <>
+            <Stack.Screen name="Home">
+              {(props: NativeStackScreenProps<RootStackParamList, "Home">) => (
+                <HomeScreen session={session} navigation={props.navigation} />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="AddPlant" options={{ presentation: "modal" }}>
+              {(props: NativeStackScreenProps<RootStackParamList, "AddPlant">) => (
+                <AddPlantScreen
+                  session={session}
+                  onPlantAdded={() => props.navigation.goBack()}
+                />
+              )}
+            </Stack.Screen>
+          </>
         ) : (
           <Stack.Screen name="Auth" component={AuthScreen} />
         )}
