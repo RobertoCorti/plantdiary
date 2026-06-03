@@ -22,6 +22,14 @@ export type PlantEvent = {
   created_at: string;
 };
 
+export type WateringStatus = "water_today" | "ok" | "check";
+
+export type WeatherData = {
+  temperature: number;
+  humidity: number;
+  precipitation: number;
+};
+
 export type AIIdentificationResult = {
   species: string;
   common_name: string;
