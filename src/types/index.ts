@@ -1,0 +1,33 @@
+export type Plant = {
+  id: string;
+  user_id: string;
+  name: string;
+  species: string | null;
+  location: string | null;
+  photo_url: string | null;
+  watering_frequency_days: number | null;
+  last_watered_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PlantEvent = {
+  id: string;
+  plant_id: string;
+  user_id: string;
+  event_type: "watered" | "fertilized" | "repotted" | "photo" | "observation";
+  notes: string | null;
+  photo_url: string | null;
+  ai_analysis: string | null;
+  created_at: string;
+};
+
+export type AIIdentificationResult = {
+  species: string;
+  common_name: string;
+  confidence: "high" | "medium" | "low";
+  watering_frequency_days: number;
+  light: string;
+  humidity: string;
+  care_notes: string;
+};
