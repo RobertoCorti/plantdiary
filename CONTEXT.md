@@ -1,6 +1,6 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: M2 — Add Plant (COMPLETE)
+## Current milestone: M3 — Today Screen (COMPLETE)
 ## Last session: 2026-06-03
 
 ### What's done
@@ -31,14 +31,30 @@
 - tsconfig.json excludes `supabase/functions` (Deno types)
 - Full flow tested end-to-end: photo → AI identification → save → plant appears on HomeScreen
 
-### What's in progress
-- Nothing — M2 is complete
+#### M3 — Today Screen (COMPLETE)
+- Installed expo-location for device GPS access
+- Added `WateringStatus` and `WeatherData` types to `src/types/index.ts`
+- Created `src/lib/watering.ts` — `getWateringStatus()` (date math comparing last_watered_at + frequency to today) and `daysSinceWatered()` helper
+- Created `src/lib/weather.ts` — `fetchWeather()` calls Open-Meteo API, returns temperature/humidity/precipitation
+- Created `src/lib/events.ts` — `logWatering()` inserts into `plant_events` and updates `plants.last_watered_at`
+- Redesigned HomeScreen as Today Screen:
+  - Header shows "Today" with formatted date (e.g. "Wednesday, June 3")
+  - Weather widget at top — requests location permission, shows temperature/humidity/precipitation
+  - Graceful fallback if location permission denied ("Location access needed for weather data")
+  - Plant cards sorted by urgency — "water_today" first, then "check", then "ok"
+  - Status badges: red "Water today", yellow "Check", green "OK"
+  - "Last watered Xd ago" subtitle (or "Never watered")
+  - One-tap "Water" button on cards needing attention — optimistic UI update, persists to Supabase
+- TypeScript compiles cleanly (`npx tsc --noEmit` passes)
 
-### Next steps (M3 — Today Screen)
-1. Watering logic: determine which plants need water based on last_watered_at + watering_frequency_days
-2. Weather integration via Open-Meteo API (humidity, precipitation)
-3. One-tap "watered" logging from HomeScreen
-4. Plant event creation (watered, fertilized, etc.)
+### What's in progress
+- Nothing — M3 is complete
+
+### Next steps (M4 — Plant Profile)
+1. Plant profile screen with photo, nickname, species, location
+2. Timeline of events (watered, fertilized, observations, photos)
+3. Care stats: average watering interval, last 30 days activity
+4. "Log event" button: watered / fertilized / repotted / take photo
 
 ### Key decisions made
 - Using `expo-secure-store` for auth token persistence on native (falls back to default on web)
@@ -51,6 +67,9 @@
 - Edge function base64 conversion: `String.fromCharCode(...spread)` causes stack overflow for large images. Must use a for loop instead.
 - `supabase.functions.invoke` swallows error details on non-2xx. Using direct `fetch` to the functions endpoint gives better error visibility.
 - Supabase Edge Functions use Deno runtime — excluded from project tsconfig to avoid type conflicts.
+- Watering logic: simple date math (`last_watered_at + watering_frequency_days` vs today). No AI recommendations yet (deferred to M5).
+- Weather: displayed as context only, does not factor into watering logic yet (deferred to M5).
+- Open-Meteo API: free, no API key needed. Endpoint: `https://api.open-meteo.com/v1/forecast?latitude=X&longitude=Y&current=temperature_2m,relative_humidity_2m,precipitation`
 
 ### Project structure
 ```
@@ -58,13 +77,16 @@ plantdiary/
 ├── App.tsx                  # Root: typed navigator + auth state
 ├── src/
 │   ├── lib/
-│   │   └── supabase.ts      # Supabase client config
+│   │   ├── supabase.ts      # Supabase client config
+│   │   ├── watering.ts      # getWateringStatus(), daysSinceWatered()
+│   │   ├── weather.ts       # fetchWeather() — Open-Meteo API
+│   │   └── events.ts        # logWatering() — insert event + update plant
 │   ├── screens/
 │   │   ├── AuthScreen.tsx    # Sign up / log in
-│   │   ├── HomeScreen.tsx    # Plant list + add button
+│   │   ├── HomeScreen.tsx    # Today Screen: weather + watering status + water button
 │   │   └── AddPlantScreen.tsx # Photo → AI ID → save plant
 │   └── types/
-│       └── index.ts          # Plant, PlantEvent, AIIdentificationResult
+│       └── index.ts          # Plant, PlantEvent, WateringStatus, WeatherData, AIIdentificationResult
 ├── supabase/
 │   ├── functions/
 │   │   └── identify-plant/
