@@ -11,8 +11,13 @@
 - Auth flow built: AuthScreen with email sign up / log in, toggle between modes
 - HomeScreen placeholder showing user email and empty state
 - App.tsx wired with React Navigation, auth state listener, conditional rendering (auth vs home)
-- `.env` file created with placeholder Supabase credentials (gitignored)
+- `.env` file created with Supabase credentials (gitignored)
+- Supabase project created and linked (project ID: xsqklmpgibpznfbpuyxe)
+- Migration run in Supabase SQL Editor — tables and RLS policies live
+- Email confirmation disabled in Supabase Auth settings (for faster dev iteration)
+- Auth flow tested end-to-end: sign up, log in, HomeScreen displays user email
 - TypeScript compiles cleanly
+- All changes committed as atomic commits to `main`
 
 ### What's in progress
 - Nothing — M1 is complete
@@ -29,6 +34,7 @@
 - Using `expo-secure-store` for auth token persistence on native (falls back to default on web)
 - Using `EXPO_PUBLIC_` prefix for env vars (Expo convention for client-side access)
 - Auth uses email/password only for MVP (no Google OAuth yet)
+- Email confirmation disabled for development
 - Navigation uses native stack navigator
 - Color scheme: green tones (#2d5016 primary, #f8faf5 background)
 
