@@ -1,6 +1,6 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: M6 — Polish (COMPLETE)
+## Current milestone: N1 — Push Notifications (COMPLETE)
 ## Last session: 2026-06-04
 
 ### What's done
@@ -91,15 +91,40 @@
 - Camera permission (`AddPlantScreen.tsx`): explicit `requestCameraPermissionsAsync()` before launching camera, alert if denied
 - TypeScript compiles cleanly (`npx tsc --noEmit` passes)
 
+#### N1 — Push Notifications (COMPLETE)
+- Installed `expo-notifications` and `expo-device`
+- Created `src/lib/notifications.ts` — `registerForPushNotifications()`:
+  - Checks for physical device (push tokens require it)
+  - Creates Android notification channel for Android 13+ permission prompt
+  - Requests notification permissions
+  - Returns Expo push token or null
+  - Sets foreground notification handler (show banner + list)
+- App.tsx: after session is confirmed, registers for push and upserts token to `profiles` table
+- Created `supabase/migrations/00002_push_tokens.sql`:
+  - `profiles` table with `id` (FK to auth.users), `push_token`, `created_at`, `updated_at`
+  - RLS policy: users can only access their own profile
+  - Commented pg_cron schedule (8am UTC daily) with `net.http_post` to edge function
+  - Commented GitHub Actions cron fallback if pg_cron is not available
+- Created `supabase/functions/send-watering-reminders/index.ts`:
+  - Uses service_role key to bypass RLS and read all profiles + plants
+  - Mirrors `getWateringStatus()` logic from `src/lib/watering.ts`
+  - For each user: computes which plants need water/check
+  - Builds summary notification body (e.g. "Giorgio needs water today · Check on Fern")
+  - Sends via Expo Push API (`https://exp.host/--/api/v2/push/send`) with batching (100 per request)
+- **Manual steps required:**
+  - Run `00002_push_tokens.sql` in Supabase SQL Editor
+  - Deploy edge function: `supabase functions deploy send-watering-reminders`
+  - Set up scheduling: enable pg_cron in Supabase dashboard or create GitHub Actions workflow
+- TypeScript compiles cleanly (`npx tsc --noEmit` passes)
+
 ### What's in progress
-- Nothing — MVP is feature-complete and polished
+- Nothing — N1 is complete
 
 ### Next steps (post-MVP)
-- Push notifications for daily watering reminders
-- Shared plants (multi-user co-management)
-- AI learning: adjust watering frequency based on history
-- Plant health score (1–10 from recent photo analysis)
-- Seasonal watering adjustments
+- N2: Contextual Daily Advisor (AI tip combining weather + plant history)
+- N3: AI Learning (auto-adjust watering frequency from real history)
+- N4: Plant Journal View (monthly narrative, photo gallery, health trend)
+- N5: Plant Health Score (1-10 from photo analysis history)
 
 ### Key decisions made
 - Using `expo-secure-store` for auth token persistence on native (falls back to default on web)
@@ -121,6 +146,9 @@
 - Photo check-in reuses the same XHR upload pattern as AddPlantScreen
 - `analyze-plant` edge function receives photo_url, plant info, and previous events for context-aware analysis
 - Analysis results stored as JSON string in `plant_events.ai_analysis` column
+- Push token stored in `profiles` table, upserted on each app launch (handles token refresh)
+- `send-watering-reminders` edge function uses service_role to bypass RLS
+- Expo Push API used for delivery — no Firebase/APNs config needed in dev (Expo handles routing)
 
 ### Project structure
 ```
@@ -129,6 +157,7 @@ plantdiary/
 ├── src/
 │   ├── lib/
 │   │   ├── supabase.ts      # Supabase client config
+│   │   ├── notifications.ts # registerForPushNotifications() — Expo push token
 │   │   ├── watering.ts      # getWateringStatus(), daysSinceWatered()
 │   │   ├── weather.ts       # fetchWeather() — Open-Meteo API
 │   │   └── events.ts        # logWatering(), logEvent(), fetchPlantEvents()
@@ -143,10 +172,13 @@ plantdiary/
 │   ├── functions/
 │   │   ├── identify-plant/
 │   │   │   └── index.ts      # Edge function: Anthropic vision API (plant ID)
-│   │   └── analyze-plant/
-│   │       └── index.ts      # Edge function: Anthropic vision API (health analysis)
+│   │   ├── analyze-plant/
+│   │   │   └── index.ts      # Edge function: Anthropic vision API (health analysis)
+│   │   └── send-watering-reminders/
+│   │       └── index.ts      # Edge function: daily push notifications via Expo Push API
 │   ├── migrations/
-│   │   └── 00001_initial_schema.sql
+│   │   ├── 00001_initial_schema.sql
+│   │   └── 00002_push_tokens.sql  # profiles table + pg_cron schedule
 │   └── storage-setup.sql     # Bucket + RLS for plant-photos
 ├── .env                     # Supabase credentials (gitignored)
 └── CONTEXT.md               # This file

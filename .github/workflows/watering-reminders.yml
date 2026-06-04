@@ -1,0 +1,16 @@
+name: Send Watering Reminders
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # daily at 08:00 UTC
+  workflow_dispatch: # allows manual trigger for testing
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -s -X POST \
+            https://xsqklmpgibpznfbpuyxe.supabase.co/functions/v1/send-watering-reminders \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json"

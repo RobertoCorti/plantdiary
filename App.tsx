@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import {
   createNativeStackNavigator,
@@ -8,6 +8,7 @@ import { Session } from "@supabase/supabase-js";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { supabase } from "./src/lib/supabase";
+import { registerForPushNotifications } from "./src/lib/notifications";
 import AuthScreen from "./src/screens/AuthScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import AddPlantScreen from "./src/screens/AddPlantScreen";
@@ -40,6 +41,22 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Register for push notifications when user is logged in
+  const hasRegistered = useRef(false);
+  useEffect(() => {
+    if (!session || hasRegistered.current) return;
+    hasRegistered.current = true;
+
+    registerForPushNotifications().then(async (token) => {
+      if (!token) return;
+      // Save token to profiles table (upsert)
+      await supabase.from("profiles").upsert(
+        { id: session.user.id, push_token: token },
+        { onConflict: "id" }
+      );
+    });
+  }, [session]);
 
   if (loading) {
     return (
