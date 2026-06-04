@@ -36,6 +36,17 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   async function pickImage(useCamera: boolean) {
+    if (useCamera) {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Camera Permission Required",
+          "Please enable camera access in your device settings to take photos."
+        );
+        return;
+      }
+    }
+
     const pickerFn = useCamera
       ? ImagePicker.launchCameraAsync
       : ImagePicker.launchImageLibraryAsync;
