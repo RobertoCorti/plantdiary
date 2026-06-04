@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -54,18 +55,26 @@ export default function HomeScreen({ session, navigation }: Props) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherError, setWeatherError] = useState<string | null>(null);
   const [wateringPlantId, setWateringPlantId] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const isFocused = useIsFocused();
 
   const fetchPlants = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("plants")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .order("created_at", { ascending: false });
+    setFetchError(null);
+    try {
+      const { data, error } = await supabase
+        .from("plants")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false });
 
-    setPlants(data ?? []);
-    setLoading(false);
+      if (error) throw error;
+      setPlants(data ?? []);
+    } catch {
+      setFetchError("Could not load your plants. Pull down to retry.");
+    } finally {
+      setLoading(false);
+    }
   }, [session.user.id]);
 
   const loadWeather = useCallback(async () => {
@@ -112,7 +121,7 @@ export default function HomeScreen({ session, navigation }: Props) {
     try {
       await logWatering(supabase, plant.id, session.user.id);
     } catch {
-      // Revert on failure
+      Alert.alert("Watering Failed", "Could not log watering. Please try again.");
       fetchPlants();
     } finally {
       setWateringPlantId(null);
@@ -232,12 +241,26 @@ export default function HomeScreen({ session, navigation }: Props) {
 
       {renderWeatherWidget()}
 
-      {plants.length === 0 && !loading ? (
+      {fetchError ? (
+        <View style={styles.placeholder}>
+          <Text style={styles.placeholderText}>{fetchError}</Text>
+          <Pressable style={styles.retryButton} onPress={fetchPlants}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : plants.length === 0 && !loading ? (
         <View style={styles.placeholder}>
           <Text style={styles.placeholderEmoji}>🌿</Text>
+          <Text style={styles.placeholderTitle}>Welcome to PlantDiary</Text>
           <Text style={styles.placeholderText}>
-            No plants yet. Add your first plant to get started!
+            Take a photo of a plant and we'll identify it for you.
           </Text>
+          <Pressable
+            style={styles.emptyAddButton}
+            onPress={() => navigation.navigate("AddPlant")}
+          >
+            <Text style={styles.emptyAddButtonText}>Add Your First Plant</Text>
+          </Pressable>
         </View>
       ) : (
         <FlatList
@@ -251,7 +274,12 @@ export default function HomeScreen({ session, navigation }: Props) {
 
       <Pressable
         style={styles.logoutButton}
-        onPress={() => supabase.auth.signOut()}
+        onPress={() =>
+          Alert.alert("Log Out", "Are you sure you want to log out?", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Log Out", style: "destructive", onPress: () => supabase.auth.signOut() },
+          ])
+        }
       >
         <Text style={styles.logoutText}>Log Out</Text>
       </Pressable>
@@ -332,11 +360,40 @@ const styles = StyleSheet.create({
     fontSize: 64,
     marginBottom: 16,
   },
+  placeholderTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#2d5016",
+    marginBottom: 8,
+  },
   placeholderText: {
     fontSize: 16,
     color: "#888",
     textAlign: "center",
     paddingHorizontal: 32,
+    marginBottom: 24,
+  },
+  emptyAddButton: {
+    backgroundColor: "#2d5016",
+    borderRadius: 12,
+    paddingHorizontal: 28,
+    paddingVertical: 16,
+  },
+  emptyAddButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  retryButton: {
+    backgroundColor: "#2d5016",
+    borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
   list: {
     paddingBottom: 20,
