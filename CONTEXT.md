@@ -1,6 +1,6 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: N1 — Push Notifications (COMPLETE)
+## Current milestone: N1 — Push Notifications (CODE COMPLETE — NOT TESTED)
 ## Last session: 2026-06-04
 
 ### What's done
@@ -91,7 +91,7 @@
 - Camera permission (`AddPlantScreen.tsx`): explicit `requestCameraPermissionsAsync()` before launching camera, alert if denied
 - TypeScript compiles cleanly (`npx tsc --noEmit` passes)
 
-#### N1 — Push Notifications (COMPLETE)
+#### N1 — Push Notifications (CODE COMPLETE — NOT TESTED)
 - Installed `expo-notifications` and `expo-device`
 - Created `src/lib/notifications.ts` — `registerForPushNotifications()`:
   - Checks for physical device (push tokens require it)
@@ -118,7 +118,15 @@
 - TypeScript compiles cleanly (`npx tsc --noEmit` passes)
 
 ### What's in progress
-- Nothing — N1 is complete
+- N1 push notifications: code is written but notification permission prompt is not appearing on physical device
+- EAS project initialized (projectId: 7acd1cb3-5663-4418-8183-2438585df567, owner: robi29)
+- GitHub Actions workflow created (`.github/workflows/watering-reminders.yml`), `SUPABASE_SERVICE_ROLE_KEY` secret added
+- **Debugging needed next session:**
+  - Check Expo Go console logs for errors from `registerForPushNotifications()`
+  - Verify `00002_push_tokens.sql` migration has been run in Supabase SQL Editor
+  - Verify `profiles` table exists before the upsert runs
+  - May need to check if Expo Go on this device/OS version requires additional config
+  - Consider testing with `expo-notifications` `requestPermissionsAsync()` in isolation
 
 ### Next steps (post-MVP)
 - N2: Contextual Daily Advisor (AI tip combining weather + plant history)
@@ -180,6 +188,9 @@ plantdiary/
 │   │   ├── 00001_initial_schema.sql
 │   │   └── 00002_push_tokens.sql  # profiles table + pg_cron schedule
 │   └── storage-setup.sql     # Bucket + RLS for plant-photos
+├── .github/
+│   └── workflows/
+│       └── watering-reminders.yml  # Daily cron → edge function for push notifications
 ├── .env                     # Supabase credentials (gitignored)
 └── CONTEXT.md               # This file
 ```
