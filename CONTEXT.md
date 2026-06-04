@@ -1,7 +1,7 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: M4 — Plant Profile (COMPLETE)
-## Last session: 2026-06-03
+## Current milestone: M6 — Polish (COMPLETE)
+## Last session: 2026-06-04
 
 ### What's done
 
@@ -62,15 +62,44 @@
 - TypeScript compiles cleanly (`npx tsc --noEmit` passes)
 - Tested end-to-end: navigation, display, event logging, back navigation all working
 
-### What's in progress
-- Nothing — M4 is complete
+#### M5 — Photo Check-In (COMPLETE)
+- Added `AIPhotoAnalysisResult` type to `src/types/index.ts`
+- Extended `logEvent()` in `src/lib/events.ts` with optional `photoUrl` and `aiAnalysis` parameters
+- Created `analyze-plant` Supabase Edge Function (`supabase/functions/analyze-plant/index.ts`) — calls Anthropic API with vision for plant health analysis
+- Added photo check-in flow to PlantProfileScreen:
+  - "Photo Check-In" button next to "Log Event" at bottom of screen
+  - Camera capture → upload to Supabase Storage → AI analysis via edge function
+  - Analysis result modal: status badge (healthy/monitor/concern), observations, recommended action
+  - Photo event with AI analysis saved to plant_events timeline
+  - AI analysis displayed inline in event timeline with status badge
+  - `parseAnalysis()` helper parses JSON ai_analysis from events
+  - Loading state with "Analyzing your plant..." spinner
+  - Error handling with Alert on failure
+- TypeScript compiles cleanly (`npx tsc --noEmit` passes)
 
-### Next steps (M5 — Photo Check-In)
-1. Take a new photo of a plant from PlantProfileScreen
-2. Upload photo to Supabase Storage
-3. Call AI (Anthropic vision) to analyze plant health, compare to previous photos/notes
-4. Display AI analysis: status (healthy/monitor/concern), observations, recommended action
-5. Save photo event with AI analysis to plant_events
+#### M6 — Polish (COMPLETE)
+- Splash screen (`App.tsx`): replaced blank `return null` during auth loading with centered "PlantDiary" title and spinner
+- Auth fix (`AuthScreen.tsx`): removed misleading "Check your email" alert (email confirmation is disabled)
+- Empty state (`HomeScreen.tsx`): added "Welcome to PlantDiary" title, descriptive tagline, and prominent "Add Your First Plant" CTA button
+- Error handling (`HomeScreen.tsx`):
+  - `fetchPlants`: try/catch with error state and "Retry" button
+  - `handleWater`: Alert on watering failure before reverting
+  - Logout: confirmation dialog before signing out
+- Error handling (`PlantProfileScreen.tsx`):
+  - `fetchData`: try/catch with Alert on failure
+  - `handleLogEvent`: Alert on failure (modal stays open for retry)
+- Camera permission (`AddPlantScreen.tsx`): explicit `requestCameraPermissionsAsync()` before launching camera, alert if denied
+- TypeScript compiles cleanly (`npx tsc --noEmit` passes)
+
+### What's in progress
+- Nothing — MVP is feature-complete and polished
+
+### Next steps (post-MVP)
+- Push notifications for daily watering reminders
+- Shared plants (multi-user co-management)
+- AI learning: adjust watering frequency based on history
+- Plant health score (1–10 from recent photo analysis)
+- Seasonal watering adjustments
 
 ### Key decisions made
 - Using `expo-secure-store` for auth token persistence on native (falls back to default on web)
@@ -89,11 +118,14 @@
 - `RootStackParamList` exported from App.tsx so screens can import it for typed navigation props
 - PlantProfileScreen uses a Modal for event logging (no external dependencies)
 - `logEvent()` is the generic version; `logWatering()` kept for backward compatibility with HomeScreen's one-tap water flow
+- Photo check-in reuses the same XHR upload pattern as AddPlantScreen
+- `analyze-plant` edge function receives photo_url, plant info, and previous events for context-aware analysis
+- Analysis results stored as JSON string in `plant_events.ai_analysis` column
 
 ### Project structure
 ```
 plantdiary/
-├── App.tsx                  # Root: typed navigator + auth state, exports RootStackParamList
+├── App.tsx                  # Root: typed navigator + auth state + splash screen, exports RootStackParamList
 ├── src/
 │   ├── lib/
 │   │   ├── supabase.ts      # Supabase client config
@@ -104,13 +136,15 @@ plantdiary/
 │   │   ├── AuthScreen.tsx    # Sign up / log in
 │   │   ├── HomeScreen.tsx    # Today Screen: weather + watering status + tappable plant cards
 │   │   ├── AddPlantScreen.tsx # Photo → AI ID → save plant
-│   │   └── PlantProfileScreen.tsx # Plant details, care stats, event timeline, log event
+│   │   └── PlantProfileScreen.tsx # Plant details, care stats, event timeline, log event, photo check-in
 │   └── types/
-│       └── index.ts          # Plant, PlantEvent, WateringStatus, WeatherData, AIIdentificationResult
+│       └── index.ts          # Plant, PlantEvent, WateringStatus, WeatherData, AIIdentificationResult, AIPhotoAnalysisResult
 ├── supabase/
 │   ├── functions/
-│   │   └── identify-plant/
-│   │       └── index.ts      # Edge function: Anthropic vision API
+│   │   ├── identify-plant/
+│   │   │   └── index.ts      # Edge function: Anthropic vision API (plant ID)
+│   │   └── analyze-plant/
+│   │       └── index.ts      # Edge function: Anthropic vision API (health analysis)
 │   ├── migrations/
 │   │   └── 00001_initial_schema.sql
 │   └── storage-setup.sql     # Bucket + RLS for plant-photos
