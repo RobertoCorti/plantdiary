@@ -20,6 +20,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7acd1cb3-5663-4418-8183-2438585df567"
+      }
+    },
+    "owner": "robi29"
   }
 }
