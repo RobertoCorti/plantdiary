@@ -39,3 +39,9 @@ export type AIIdentificationResult = {
   humidity: string;
   care_notes: string;
 };
+
+export type AIPhotoAnalysisResult = {
+  status: "healthy" | "monitor" | "concern";
+  observations: string;
+  recommended_action: string | null;
+};

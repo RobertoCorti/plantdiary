@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Modal,
@@ -10,13 +11,19 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useIsFocused } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { getWateringStatus } from "../lib/watering";
 import { logEvent, fetchPlantEvents } from "../lib/events";
-import type { Plant, PlantEvent, WateringStatus } from "../types";
+import type {
+  Plant,
+  PlantEvent,
+  WateringStatus,
+  AIPhotoAnalysisResult,
+} from "../types";
 import type { RootStackParamList } from "../../App";
 
 type Props = {
@@ -32,6 +39,15 @@ const STATUS_CONFIG: Record<
   water_today: { label: "Water today", bg: "#fdecea", text: "#c0392b" },
   check: { label: "Check", bg: "#fff8e1", text: "#f39c12" },
   ok: { label: "OK", bg: "#e8f5e9", text: "#2d5016" },
+};
+
+const ANALYSIS_STATUS_CONFIG: Record<
+  AIPhotoAnalysisResult["status"],
+  { label: string; bg: string; text: string }
+> = {
+  healthy: { label: "Healthy", bg: "#e8f5e9", text: "#2d5016" },
+  monitor: { label: "Monitor", bg: "#fff8e1", text: "#f39c12" },
+  concern: { label: "Concern", bg: "#fdecea", text: "#c0392b" },
 };
 
 const EVENT_TYPES = ["watered", "fertilized", "repotted", "observation"] as const;
@@ -50,7 +66,7 @@ const EVENT_LABELS: Record<PlantEvent["event_type"], string> = {
   fertilized: "Fertilized",
   repotted: "Repotted",
   observation: "Observation",
-  photo: "Photo",
+  photo: "Photo Check-In",
 };
 
 function relativeTime(dateStr: string): string {
@@ -68,6 +84,17 @@ function relativeTime(dateStr: string): string {
   return `${months}mo ago`;
 }
 
+function parseAnalysis(raw: string | null): AIPhotoAnalysisResult | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed.status && parsed.observations) return parsed;
+  } catch {
+    // not JSON, ignore
+  }
+  return null;
+}
+
 export default function PlantProfileScreen({
   session,
   plantId,
@@ -81,17 +108,27 @@ export default function PlantProfileScreen({
     useState<LoggableEventType>("watered");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] =
+    useState<AIPhotoAnalysisResult | null>(null);
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const isFocused = useIsFocused();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [plantResult, eventsResult] = await Promise.all([
-      supabase.from("plants").select("*").eq("id", plantId).single(),
-      fetchPlantEvents(supabase, plantId),
-    ]);
-    if (plantResult.data) setPlant(plantResult.data as Plant);
-    setEvents(eventsResult);
-    setLoading(false);
+    try {
+      const [plantResult, eventsResult] = await Promise.all([
+        supabase.from("plants").select("*").eq("id", plantId).single(),
+        fetchPlantEvents(supabase, plantId),
+      ]);
+      if (plantResult.error) throw plantResult.error;
+      if (plantResult.data) setPlant(plantResult.data as Plant);
+      setEvents(eventsResult);
+    } catch {
+      Alert.alert("Error", "Could not load plant data. Please go back and try again.");
+    } finally {
+      setLoading(false);
+    }
   }, [plantId]);
 
   useEffect(() => {
@@ -143,9 +180,125 @@ export default function PlantProfileScreen({
       setNotes("");
       setSelectedEventType("watered");
     } catch {
-      // stay on modal so user can retry
+      Alert.alert("Error", "Could not save event. Please try again.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handlePhotoCheckIn() {
+    const pickerResult = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (pickerResult.canceled || !pickerResult.assets[0]) return;
+
+    const uri = pickerResult.assets[0].uri;
+    setAnalyzing(true);
+
+    try {
+      // Upload photo to Supabase Storage
+      const fileExt = uri.split(".").pop() ?? "jpg";
+      const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
+      const contentType = `image/${fileExt === "jpg" ? "jpeg" : fileExt}`;
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+
+      const formData = new FormData();
+      formData.append("file", {
+        uri,
+        name: fileName.split("/").pop(),
+        type: contentType,
+      } as unknown as Blob);
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(
+          "POST",
+          `${supabaseUrl}/storage/v1/object/plant-photos/${fileName}`
+        );
+        xhr.setRequestHeader(
+          "Authorization",
+          `Bearer ${session.access_token}`
+        );
+        xhr.setRequestHeader(
+          "apikey",
+          process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+        );
+        xhr.setRequestHeader("x-upsert", "false");
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`Upload failed: ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Upload network error"));
+        xhr.send(formData);
+      });
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("plant-photos").getPublicUrl(fileName);
+
+      // Build previous events context (last 5)
+      const recentEvents = events.slice(0, 5).map((e) => ({
+        event_type: e.event_type,
+        created_at: e.created_at,
+        notes: e.notes,
+        ai_analysis: e.ai_analysis,
+      }));
+
+      // Call analyze-plant edge function
+      const fnResp = await fetch(
+        `${supabaseUrl}/functions/v1/analyze-plant`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            photo_url: publicUrl,
+            plant: {
+              species: plant?.species,
+              name: plant?.name,
+            },
+            previous_events: recentEvents,
+          }),
+        }
+      );
+
+      if (!fnResp.ok) {
+        const errText = await fnResp.text();
+        throw new Error(`Analysis failed (${fnResp.status}): ${errText}`);
+      }
+
+      const analysis = (await fnResp.json()) as AIPhotoAnalysisResult;
+      setAnalysisResult(analysis);
+      setShowAnalysisModal(true);
+
+      // Save event with photo and analysis
+      await logEvent(
+        supabase,
+        plantId,
+        session.user.id,
+        "photo",
+        undefined,
+        publicUrl,
+        JSON.stringify(analysis)
+      );
+
+      const updated = await fetchPlantEvents(supabase, plantId);
+      setEvents(updated);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Something went wrong";
+      Alert.alert("Photo Check-In Failed", message);
+    } finally {
+      setAnalyzing(false);
     }
   }
 
@@ -157,10 +310,21 @@ export default function PlantProfileScreen({
     );
   }
 
+  if (analyzing) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#2d5016" />
+        <Text style={styles.analyzingText}>Analyzing your plant...</Text>
+      </View>
+    );
+  }
+
   const status = getWateringStatus(plant);
   const config = STATUS_CONFIG[status];
 
   function renderEvent({ item }: { item: PlantEvent }) {
+    const analysis = parseAnalysis(item.ai_analysis);
+
     return (
       <View style={styles.eventRow}>
         <Text style={styles.eventIcon}>
@@ -171,12 +335,41 @@ export default function PlantProfileScreen({
             <Text style={styles.eventType}>
               {EVENT_LABELS[item.event_type] ?? item.event_type}
             </Text>
-            <Text style={styles.eventTime}>{relativeTime(item.created_at)}</Text>
+            <Text style={styles.eventTime}>
+              {relativeTime(item.created_at)}
+            </Text>
           </View>
           {item.notes ? (
             <Text style={styles.eventNotes} numberOfLines={2}>
               {item.notes}
             </Text>
+          ) : null}
+          {analysis ? (
+            <View style={styles.analysisInline}>
+              <View
+                style={[
+                  styles.analysisBadgeSmall,
+                  { backgroundColor: ANALYSIS_STATUS_CONFIG[analysis.status].bg },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.analysisBadgeText,
+                    { color: ANALYSIS_STATUS_CONFIG[analysis.status].text },
+                  ]}
+                >
+                  {ANALYSIS_STATUS_CONFIG[analysis.status].label}
+                </Text>
+              </View>
+              <Text style={styles.analysisObservations} numberOfLines={3}>
+                {analysis.observations}
+              </Text>
+              {analysis.recommended_action ? (
+                <Text style={styles.analysisAction} numberOfLines={2}>
+                  {analysis.recommended_action}
+                </Text>
+              ) : null}
+            </View>
           ) : null}
         </View>
       </View>
@@ -256,13 +449,77 @@ export default function PlantProfileScreen({
         }
       />
 
-      {/* Log event button */}
-      <Pressable
-        style={styles.logButton}
-        onPress={() => setShowLogModal(true)}
+      {/* Bottom buttons */}
+      <View style={styles.bottomButtons}>
+        <Pressable
+          style={styles.photoCheckInButton}
+          onPress={handlePhotoCheckIn}
+        >
+          <Text style={styles.photoCheckInButtonText}>📷 Photo Check-In</Text>
+        </Pressable>
+        <Pressable
+          style={styles.logButton}
+          onPress={() => setShowLogModal(true)}
+        >
+          <Text style={styles.logButtonText}>+ Log Event</Text>
+        </Pressable>
+      </View>
+
+      {/* Analysis result modal */}
+      <Modal
+        visible={showAnalysisModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAnalysisModal(false)}
       >
-        <Text style={styles.logButtonText}>+ Log Event</Text>
-      </Pressable>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {analysisResult && (
+              <>
+                <Text style={styles.modalTitle}>Photo Analysis</Text>
+                <View
+                  style={[
+                    styles.analysisBadge,
+                    {
+                      backgroundColor:
+                        ANALYSIS_STATUS_CONFIG[analysisResult.status].bg,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.analysisBadgeLabelText,
+                      {
+                        color:
+                          ANALYSIS_STATUS_CONFIG[analysisResult.status].text,
+                      },
+                    ]}
+                  >
+                    {ANALYSIS_STATUS_CONFIG[analysisResult.status].label}
+                  </Text>
+                </View>
+                <Text style={styles.analysisModalObservations}>
+                  {analysisResult.observations}
+                </Text>
+                {analysisResult.recommended_action ? (
+                  <View style={styles.actionBox}>
+                    <Text style={styles.actionLabel}>Recommended Action</Text>
+                    <Text style={styles.actionText}>
+                      {analysisResult.recommended_action}
+                    </Text>
+                  </View>
+                ) : null}
+                <Pressable
+                  style={styles.submitButton}
+                  onPress={() => setShowAnalysisModal(false)}
+                >
+                  <Text style={styles.submitButtonText}>Done</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Log event modal */}
       <Modal
@@ -354,6 +611,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#f8faf5",
   },
+  analyzingText: {
+    fontSize: 16,
+    color: "#2d5016",
+    marginTop: 16,
+  },
   backButton: {
     position: "absolute",
     top: 54,
@@ -370,7 +632,7 @@ const styles = StyleSheet.create({
     color: "#2d5016",
   },
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   heroImage: {
     width: "100%",
@@ -493,11 +755,60 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 4,
   },
-  logButton: {
+  analysisInline: {
+    marginTop: 8,
+    backgroundColor: "#f8f9f5",
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#e8ece2",
+  },
+  analysisBadgeSmall: {
+    alignSelf: "flex-start",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginBottom: 6,
+  },
+  analysisBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  analysisObservations: {
+    fontSize: 13,
+    color: "#555",
+    lineHeight: 18,
+  },
+  analysisAction: {
+    fontSize: 12,
+    color: "#c0392b",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  bottomButtons: {
     position: "absolute",
     bottom: 36,
     left: 24,
     right: 24,
+    flexDirection: "row",
+    gap: 12,
+  },
+  photoCheckInButton: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#2d5016",
+  },
+  photoCheckInButtonText: {
+    color: "#2d5016",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  logButton: {
+    flex: 1,
     backgroundColor: "#2d5016",
     borderRadius: 14,
     paddingVertical: 16,
@@ -505,7 +816,7 @@ const styles = StyleSheet.create({
   },
   logButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
   },
   modalOverlay: {
@@ -525,6 +836,42 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#2d5016",
     marginBottom: 20,
+  },
+  analysisBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginBottom: 16,
+  },
+  analysisBadgeLabelText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  analysisModalObservations: {
+    fontSize: 16,
+    color: "#333",
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+  actionBox: {
+    backgroundColor: "#fef3f0",
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#fde0d8",
+  },
+  actionLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#c0392b",
+    marginBottom: 4,
+  },
+  actionText: {
+    fontSize: 14,
+    color: "#555",
+    lineHeight: 20,
   },
   typePicker: {
     flexDirection: "row",

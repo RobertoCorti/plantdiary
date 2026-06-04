@@ -30,7 +30,9 @@ export async function logEvent(
   plantId: string,
   userId: string,
   eventType: PlantEvent["event_type"],
-  notes?: string
+  notes?: string,
+  photoUrl?: string,
+  aiAnalysis?: string
 ): Promise<void> {
   const now = new Date().toISOString();
 
@@ -39,6 +41,8 @@ export async function logEvent(
     user_id: userId,
     event_type: eventType,
     notes: notes || null,
+    photo_url: photoUrl || null,
+    ai_analysis: aiAnalysis || null,
     created_at: now,
   });
 
