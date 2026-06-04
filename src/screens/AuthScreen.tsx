@@ -36,9 +36,8 @@ export default function AuthScreen() {
       return;
     }
 
-    if (isSignUp) {
-      Alert.alert("Check your email", "We sent you a confirmation link.");
-    }
+    // Email confirmation is disabled — signup triggers auth state change
+    // automatically, navigating to HomeScreen.
   }
 
   return (
