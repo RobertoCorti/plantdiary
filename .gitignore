@@ -44,3 +44,6 @@ yarn-error.*
 
 # Supabase CLI
 supabase/.temp/
+
+google-services.json
+plantdiary-b4b24-firebase-adminsdk.json
