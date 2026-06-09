@@ -138,11 +138,34 @@
      ```
   5. Confirm notification arrives on phone
 
-### Next steps (post-MVP)
-- N2: Contextual Daily Advisor (AI tip combining weather + plant history)
-- N3: AI Learning (auto-adjust watering frequency from real history)
-- N4: Plant Journal View (monthly narrative, photo gallery, health trend)
-- N5: Plant Health Score (1-10 from photo analysis history)
+### Strategic principles (2026-06-09 — revised after roadmap review)
+
+1. **Context cannot be backfilled.** Every signal we don't log today (weather, light, time-of-day) is permanently lost training data. Default to silent rich logging — recording is near-free, missing data is forever.
+2. **The personal model precedes the advice.** AI advice built on species defaults is what we are differentiating against. Build the learning loop (N2 — AI Learning) before the advisor (N3 — Event-triggered Advisor).
+3. **Honest AI is structural, not cosmetic.** Render confidence as numbers and error bars that tighten with data, not as prose disclaimers. Silence beats padding.
+4. **Differentiation compounds.** Prefer features boring on day 1 and uncanny on day 90.
+
+### Revised roadmap (supersedes prior N1–N5)
+
+Build order, not user-facing priority. Full rationale in PRD §7.
+
+- **N1 — Push notifications (context-aware payloads).** In progress. Payload body must read from user data, not species defaults.
+- **N1.5 — Weather column on `plant_events`.** *Highest-leverage 1-hour change in the project.* `weather` JSONB populated silently by `logEvent`/`logWatering` from existing `fetchWeather()`. Ships before anything else once N1 is verified. **Calendar-gating** — the Day 30 north-star moment goes live ~30 days after this lands.
+- **N2 — AI Learning (per-plant watering frequency).** Propose updates with evidence, never silent change. Confidence visibly tightens with N. This is the core differentiator and what everything below reads from.
+- **N3 — Event-triggered Advisor.** Replaces the old "daily" advisor. Surfaces only when forecast + plant state intersect. Silent on uneventful days.
+- **N4 — Plant Journal View.** Monthly Claude-generated narrative + photo gallery + milestone feed. Auto-feeds from N1.5/N2 outputs.
+- **N5 — Slow-drift detector.** Replaces the cut 1–10 health score. Compares latest photo to 4–6 week rolling baseline; direction + evidence, no scalar.
+- **N6 — Shared Plants.** Named in PRD §3 as a key differentiator vs competitors. Deferred to N6 only because the personal model needs to be working first.
+- **Small wins (parallel):** plant ID correction loop ("this isn't right" affordance); care stats milestone cards.
+- **Cut:** N5 1–10 health score (fake precision, violates honest-AI). Daily-cadence advisor (forces padding).
+
+### North star: the Day 30 moment
+
+30 days after a plant is added, app surfaces a single full-screen card: side-by-side first/latest photo, the user's actual watering interval vs species default, a weather sparkline of the dryest week, and a proposed frequency update with confidence label. Full spec in PRD §7.1. Every roadmap item ladders up to this convergence.
+
+### Immediate next action
+
+**Ship N1.5 (weather column) the day N1 is verified.** Rationale: every uncaptured event is permanent data loss; the Day 30 moment is calendar-gated by this. Scope: migration adding `weather` JSONB to `plant_events`, edits in `src/lib/events.ts` to populate from `fetchWeather()`, NULL backfill for existing rows (distinguishes "no data" from "we forgot").
 
 ### Dev workflow
 

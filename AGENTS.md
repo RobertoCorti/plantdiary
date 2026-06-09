@@ -13,17 +13,36 @@ Every feature should serve one of these goals:
 2. Surface insights from that context (advisor, health trends, seasonal patterns)
 3. Create emotional connection to the plant (narrative summaries, milestones)
 
-## Feature priorities
-- N1: Push notifications (daily reminder, watering urgency)
-- N2: Contextual Daily Advisor (AI tip combining weather + plant history)
-- N3: AI Learning (auto-adjust watering frequency from real history)
-- N4: Plant Journal View (monthly narrative, photo gallery, health trend)
-- N5: Plant Health Score (1-10 from photo analysis history)
+## Strategic principles
+
+1. **Context cannot be backfilled.** Every signal we don't log today (weather, light, time-of-day) is permanently lost training data. Default to silent rich logging.
+2. **The personal model precedes the advice.** Any AI-generated tip built on species defaults is exactly what we are differentiating against. Build the learning loop before the advisor that reads from it.
+3. **Honest AI is structural, not cosmetic.** Render confidence as numbers/error bars that visibly tighten with data, not as prose disclaimers. Silence beats padding.
+4. **Differentiation compounds.** Prefer features boring on day 1 and uncanny on day 90.
+
+## North star: the Day 30 moment
+
+30 days after a plant is added, the app surfaces a single full-screen card showing first/latest photo, the user's actual watering interval vs species default, a weather sparkline of the dryest week, and a proposed frequency update with confidence. Full spec in PRD §7.1. Every roadmap item ladders up to this convergence.
+
+## Feature priorities (build order, revised 2026-06-09)
+
+- **N1**: Push notifications — context-aware payloads (not species defaults)
+- **N1.5**: Weather logged on every `plant_event` — 1-hour change, calendar-gates everything below. **Cannot be backfilled.**
+- **N2**: AI Learning (per-plant watering frequency) — propose with evidence, never silent change. The differentiator everything else reads from.
+- **N3**: Event-triggered Advisor (replaces "daily" advisor) — silent on uneventful days
+- **N4**: Plant Journal View — monthly narrative + photo gallery + auto-detected milestones
+- **N5**: Slow-drift detector (replaces 1–10 health score) — direction + evidence, no scalar
+- **N6**: Shared Plants — multi-user ownership, deferred only because personal model must work first
+- Small wins (parallel): plant ID correction loop; care stats milestone cards
+
+**Cut:** 1–10 health score (fake precision), daily-cadence advisor (forces padding). See PRD §7 for full rationale.
 
 ## What NOT to build
 - Social features, sharing, community
 - Marketplace or shop integrations
 - Generic care content not tied to the user's own data
+- Scalar health scores (use direction + evidence instead)
+- AI features that must produce output every day (silence is a feature)
 
 # Architecture Constraints
 
@@ -60,7 +79,7 @@ xhr.send(formData);
 
 ## Data philosophy
 - Every user action that reveals something about the plant should be persisted
-- Weather at time of watering is valuable context — consider logging it
+- **Log weather on every `plant_event`** (`weather` JSONB column). Not optional — context cannot be backfilled. Use existing `fetchWeather()` and write silently.
 - AI responses should always be stored (`ai_analysis` column) for future learning
 
 # Claude Code Session Rules

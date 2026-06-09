@@ -15,6 +15,13 @@ Core insight: the difference between a plant that survives and one that thrives 
 
 **One-line pitch:** Strava for your plants — track, learn, improve.
 
+### Strategic principles
+
+1. **Context cannot be backfilled.** Every signal we don't capture today (weather, light, time-of-day, season) is permanently lost training data. Default to logging silently and richly; the cost of recording is near-zero, the cost of missing data is permanent.
+2. **The personal model precedes the advice.** Any AI-generated tip built on species defaults is exactly what we are differentiating against. Build the learning loop first, then the advisor that reads from it.
+3. **Honest AI is structural, not cosmetic.** Confidence is rendered as numbers and error bars that visibly tighten with data, not as disclaimers in prose. Silence is allowed — and preferable to padding.
+4. **Differentiation compounds.** Features should be boring on day 1 and uncanny on day 90. Prefer features whose magic comes from accumulated history over features that are flashy at first use.
+
 ----------
 
 ## 2. Target User
@@ -172,55 +179,50 @@ create policy "users own their events" on plant_events
 
 ## 7. Feature Scope — Post-MVP
 
-These are validated ideas for future iterations, not MVP scope.
+The roadmap is ordered so that every feature compounds the personal model (Strategic Principle 2). Numbers reflect build order, not user-facing priority.
 
-Feature
+| # | Feature | What it is | Why it ships in this order |
+|---|---------|------------|----------------------------|
+| **N1** | **Push notifications (context-aware payloads)** | Daily/event-triggered reminders, body text drawn from the user's actual data ("Giorgio's usually thirsty by now and it's been a dry week") not species defaults | Table-stakes plumbing. Payload quality is where the differentiator shows up. |
+| **N1.5** | **Weather logged on every `plant_event`** | `weather` JSONB column (temperature, humidity, precipitation) populated silently by `logEvent`/`logWatering` from existing `fetchWeather()` | **Critical prerequisite** for every feature below. Cannot be backfilled (Strategic Principle 1). Ship before anything else. ~1 hour of work. |
+| **N2** | **AI Learning — per-plant watering frequency** | After N watering events, propose an updated frequency with evidence: *"14 waterings averaged 9.2 days, plant healthy throughout — update from 7 to 9?"* Confidence visibly tightens as data grows. Never silently change. | This is the core differentiator. Everything below reads from this model. Building anything AI-facing before this means building on species defaults — exactly what we are differentiating against. |
+| **N3** | **Event-triggered Advisor** (replaces "Daily Advisor") | AI tip surfaces only when weather forecast + plant state actually intersect ("heatwave incoming, three plants will dry early"). Silent on uneventful days. | Honest AI is structural (Principle 3). Daily cadence forces padding; event cadence forces signal. Reads from N2's learned model. |
+| **N4** | **Plant Journal View** | Monthly narrative (Claude-generated), photo gallery, milestone feed (auto-detected: anniversaries from `created_at`, opportunistic counters; vision-detected milestones later when baseline is stable) | Emotional retention engine (Principle 4). Auto-feeds from milestones produced by N1.5 weather logging, N2 frequency proposals, and photo check-ins. |
+| **N5** | **Slow-drift detector** (replaces 1–10 health score) | Compares latest photo against a rolling 4–6 week baseline, surfaces direction + evidence ("gradual color shift over 6 weeks, here's the comparison"). No scalar score. | A 1–10 score is fake precision and violates Principle 3. Direction + evidence is honest and more useful. |
+| **N6** | **Shared Plants** | Multi-user ownership on a plant (couples, flatmates). Per-user event attribution preserved. | Named in §3 as a key differentiator vs competitors. Roberto's persona explicitly has this need. Deferred to N6 only because it requires the personal model to be working first. |
+| Small wins | **Plant ID correction loop** | "This isn't right" affordance on plant profile that re-prompts identification or lets user override species | A wrong species at add-time poisons every downstream recommendation. Cheap to add, high leverage. |
+| Small wins | **Care stats milestone cards** | "100 days with Giorgio. 14 waterings, 2 fertilizings, 1 scare survived." | Screenshot-worthy. All counters on existing data. <1 day. |
+| Deferred | Seasonal adjustment | Automatic — N2 will pick this up from history once we have a full year of data. Not a separate feature. |
+| Deferred | Community / social | Out of scope per AGENTS.md (no social features). |
+| Deferred | Plant shop integration | Out of scope per AGENTS.md (no marketplace). |
 
-Description
+### 7.1 North Star — the Day 30 moment
 
-Priority
+Every roadmap item ladders up to a single user-facing moment that proves PlantDiary was learning all along.
 
-Push notifications
+**Trigger:** 30 days after a plant is added, given ≥4 watering events and ≥2 photos.
 
-Daily reminder for plants that need water
+**Push notification:** *"Giorgio has something to tell you."*
 
-High
+**The card (full screen, calm voice):**
 
-Shared plants
+> *"I've been watching Giorgio for 30 days.*
+> *Care guides said water every 7 days — you actually watered every 9.2 days, and he's thriving. Here's day 1 next to today.*
+> *[first photo | latest photo — vision-noted new growth highlighted]*
+> *His thirstiest stretch was the week of May 20 — the warmest, driest week of the month.*
+> *[tiny weather sparkline from the logged `weather` column]*
+> *I'd like to update his schedule to 9 days. Confidence: moderate — it'll sharpen over the next few weeks."*
+>
+> **[Update schedule] [Keep as is]**
 
-Multiple users can co-manage a plant (couples, flatmates)
+**Why this is the north star:**
 
-High
+- It is the first time the app *proves* it was learning rather than claiming it.
+- The user gave nothing but taps and photos and got back an observation about *their specific plant in their specific home* — something no species database can produce.
+- It ends in a request for permission, not a silent change (Principle 3).
+- Every piece of data powering it ships in N1.5 → N2. The moment is just their convergence, staged.
 
-AI learning
-
-Adjust watering frequency based on history ("your Pothos actually needs 9 days, not 7")
-
-High
-
-Plant health score
-
-Visual score 1–10 based on recent photo analysis
-
-Medium
-
-Seasonal adjustment
-
-Automatically reduce watering in winter
-
-Medium
-
-Community / social
-
-Share plant milestones, compare collections
-
-Low
-
-Plant shop integration
-
-"Your Monstera is root-bound — here's where to buy a bigger pot"
-
-Low
+**Sequencing implication:** the Day 30 moment goes live ~30 days after N1.5 (weather column) ships. That makes N1.5 a calendar-gating decision, not a nice-to-have.
 
 ----------
 
