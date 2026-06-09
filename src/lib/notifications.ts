@@ -1,31 +1,39 @@
 import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
 
-// Show notifications when app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+const isExpoGo = Constants.appOwnership === "expo";
 
 /**
  * Request notification permissions and return the Expo push token.
- * Returns null if permissions denied or running on a simulator without support.
+ * Returns null if permissions denied, on a simulator, or in Expo Go
+ * (which dropped remote push support in SDK 53 — use a dev build).
  */
 export async function registerForPushNotifications(): Promise<string | null> {
   try {
-    // Push tokens only work on physical devices (and Android emulators with Play Services)
+    if (isExpoGo) {
+      console.log(
+        "Push notifications skipped: Expo Go does not support remote push since SDK 53. Use a development build to test."
+      );
+      return null;
+    }
+
     if (!Device.isDevice) {
       console.log("Push notifications require a physical device");
       return null;
     }
 
-    // Android 13+ requires a notification channel before requesting permissions
+    const Notifications = require("expo-notifications");
+
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
         name: "Default",
