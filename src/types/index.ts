@@ -19,6 +19,7 @@ export type PlantEvent = {
   notes: string | null;
   photo_url: string | null;
   ai_analysis: string | null;
+  weather: WeatherData | null;
   created_at: string;
 };
 

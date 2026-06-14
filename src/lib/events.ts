@@ -1,5 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PlantEvent } from "../types";
+import type { PlantEvent, WeatherData } from "../types";
+import { fetchWeather } from "./weather";
+import { getCurrentCoordsOrNull } from "./location";
+import { log } from "./logger";
+
+async function captureWeather(): Promise<WeatherData | null> {
+  const coords = await getCurrentCoordsOrNull();
+  if (!coords) return null;
+  try {
+    const w = await fetchWeather(coords.lat, coords.lon);
+    log.info("weather", "Captured for event", w);
+    return w;
+  } catch (err) {
+    log.warn("weather", "fetchWeather failed; storing NULL", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
 
 export async function logWatering(
   supabase: SupabaseClient,
@@ -7,11 +23,13 @@ export async function logWatering(
   userId: string
 ): Promise<void> {
   const now = new Date().toISOString();
+  const weather = await captureWeather();
 
   const { error: eventError } = await supabase.from("plant_events").insert({
     plant_id: plantId,
     user_id: userId,
     event_type: "watered",
+    weather,
     created_at: now,
   });
 
@@ -35,6 +53,7 @@ export async function logEvent(
   aiAnalysis?: string
 ): Promise<void> {
   const now = new Date().toISOString();
+  const weather = await captureWeather();
 
   const { error: eventError } = await supabase.from("plant_events").insert({
     plant_id: plantId,
@@ -43,6 +62,7 @@ export async function logEvent(
     notes: notes || null,
     photo_url: photoUrl || null,
     ai_analysis: aiAnalysis || null,
+    weather,
     created_at: now,
   });
 

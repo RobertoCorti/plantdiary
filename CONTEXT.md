@@ -1,6 +1,6 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: N1.5 — Weather column on plant_events (next)
+## Current milestone: N2 — AI Learning, per-plant watering frequency (next)
 ## Last session: 2026-06-14
 
 ### What's done
@@ -121,6 +121,14 @@
 - Fix: changed to lazy `require()` inside `registerForPushNotifications()`, gated behind `Constants.appOwnership === "expo"` early-return. App now boots cleanly in Expo Go (registration is a no-op there).
 - Verified: confirmed via dev server log `LOG  Push notifications skipped: Expo Go does not support remote push since SDK 53` after login.
 
+#### N1.5 — Weather column on plant_events (COMPLETE — verified end-to-end 2026-06-14)
+- Migration `00003_plant_events_weather.sql`: `alter table plant_events add column weather jsonb;`. Existing rows NULL = "not yet attempted" baseline.
+- `src/lib/location.ts` — `getCurrentCoordsOrNull()`. Requests foreground permission if not granted, returns null on any failure. Live GPS per event (Balanced accuracy ≈ <1s on warm cache).
+- `src/lib/events.ts` — private `captureWeather()` orchestrates location + fetchWeather, logs result, returns `WeatherData | null`. Both `logWatering` and `logEvent` await it and pass `weather` into the insert. Event always saves, weather is silently NULL on any failure (PRD Principle 1: context cannot be backfilled, but losing the event itself is worse).
+- `src/types/index.ts` — `PlantEvent.weather: WeatherData | null`.
+- Verified on device 2026-06-14 16:07: observation logged → `[weather] Captured for event {humidity:62, precipitation:0, temperature:16.2}` → row persisted with that JSONB in `plant_events.weather`.
+- **Calendar gate cleared.** Day 30 north-star moment is now ~30 days from this point for any plant added now; existing plants will have it from when they get their first post-N1.5 event.
+
 ### Session 2026-06-14 — N1 verified end-to-end
 
 - Dev build #2 (Android APK with FCM config) installed on physical device.
@@ -166,7 +174,7 @@ Plan agreed: install `@sentry/react-native` + Expo plugin, wire DSN, trigger EAS
 Build order, not user-facing priority. Full rationale in PRD §7.
 
 - **N1 — Push notifications (context-aware payloads).** ✅ Complete (verified 2026-06-14). Payload body reads from user data ("Calla needs water today"). Next iteration: weather-aware payload bodies once N1.5 lands.
-- **N1.5 — Weather column on `plant_events`.** *Highest-leverage 1-hour change in the project.* `weather` JSONB populated silently by `logEvent`/`logWatering` from existing `fetchWeather()`. Ships before anything else once N1 is verified. **Calendar-gating** — the Day 30 north-star moment goes live ~30 days after this lands.
+- **N1.5 — Weather column on `plant_events`.** ✅ Complete (verified 2026-06-14). `weather` JSONB populated by `captureWeather()` on every `logEvent`/`logWatering`. Day 30 moment is now calendar-counting from here.
 - **N2 — AI Learning (per-plant watering frequency).** Propose updates with evidence, never silent change. Confidence visibly tightens with N. This is the core differentiator and what everything below reads from.
 - **N3 — Event-triggered Advisor.** Replaces the old "daily" advisor. Surfaces only when forecast + plant state intersect. Silent on uneventful days.
 - **N4 — Plant Journal View.** Monthly Claude-generated narrative + photo gallery + milestone feed. Auto-feeds from N1.5/N2 outputs.
@@ -181,7 +189,16 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 
 ### Immediate next action
 
-**Ship N1.5 (weather column) the day N1 is verified.** Rationale: every uncaptured event is permanent data loss; the Day 30 moment is calendar-gated by this. Scope: migration adding `weather` JSONB to `plant_events`, edits in `src/lib/events.ts` to populate from `fetchWeather()`, NULL backfill for existing rows (distinguishes "no data" from "we forgot").
+**Start N2 — AI Learning (per-plant watering frequency).** With N1.5 live, every new event accrues weather context that N2 can read. Scope (proposed, refine at session start):
+1. After a plant has ≥ N watering events (try N=5 to keep test cycles short), compute median observed interval from `plant_events` rows.
+2. Edge function `propose-watering-frequency` returns `{ proposed_days, confidence, evidence: { count, median_days, current_days } }`.
+3. In-app card on Plant Profile: *"You've watered Giorgio every X days on average; species default is Y. Update to X? [Update] [Keep]"*. Never silently change.
+4. On Update, persist new `watering_frequency_days` on `plants` and log a `frequency_updated` event (consider whether this needs a new event_type or just an observation).
+5. Confidence: simple count-based at first (low <5, medium 5–9, high ≥10). Tighten with variance later.
+
+Defer: weather-aware adjustment (needs more data per season). Slot for after first round of real proposals lands.
+
+Phase 3 (Sentry) also still queued — wire alongside next native-deps change to avoid an extra rebuild.
 
 ### Dev workflow
 
@@ -243,10 +260,11 @@ plantdiary/
 │   ├── lib/
 │   │   ├── supabase.ts      # Supabase client config
 │   │   ├── logger.ts        # log.info/warn/error(tag, message, data?) — tagged JS logger
+│   │   ├── location.ts      # getCurrentCoordsOrNull() — GPS with permission + null fallback
 │   │   ├── notifications.ts # registerForPushNotifications() — Expo push token
 │   │   ├── watering.ts      # getWateringStatus(), daysSinceWatered()
 │   │   ├── weather.ts       # fetchWeather() — Open-Meteo API
-│   │   └── events.ts        # logWatering(), logEvent(), fetchPlantEvents()
+│   │   └── events.ts        # logWatering()/logEvent() — silently capture weather; fetchPlantEvents()
 │   ├── screens/
 │   │   ├── AuthScreen.tsx    # Sign up / log in
 │   │   ├── HomeScreen.tsx    # Today Screen: weather + watering status + tappable plant cards
@@ -264,7 +282,8 @@ plantdiary/
 │   │       └── index.ts      # Edge function: daily push notifications via Expo Push API
 │   ├── migrations/
 │   │   ├── 00001_initial_schema.sql
-│   │   └── 00002_push_tokens.sql  # profiles table + pg_cron schedule
+│   │   ├── 00002_push_tokens.sql  # profiles table + pg_cron schedule
+│   │   └── 00003_plant_events_weather.sql  # adds weather jsonb to plant_events
 │   └── storage-setup.sql     # Bucket + RLS for plant-photos
 ├── .github/
 │   └── workflows/
