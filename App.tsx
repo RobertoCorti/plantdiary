@@ -9,6 +9,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { supabase } from "./src/lib/supabase";
 import { registerForPushNotifications } from "./src/lib/notifications";
+import { log } from "./src/lib/logger";
 import AuthScreen from "./src/screens/AuthScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import AddPlantScreen from "./src/screens/AddPlantScreen";
@@ -50,11 +51,15 @@ export default function App() {
 
     registerForPushNotifications().then(async (token) => {
       if (!token) return;
-      // Save token to profiles table (upsert)
-      await supabase.from("profiles").upsert(
+      const { error } = await supabase.from("profiles").upsert(
         { id: session.user.id, push_token: token },
         { onConflict: "id" }
       );
+      if (error) {
+        log.error("push", "Failed to upsert token to profiles", error.message);
+      } else {
+        log.info("push", "Token saved to profiles", { userId: session.user.id });
+      }
     });
   }, [session]);
 

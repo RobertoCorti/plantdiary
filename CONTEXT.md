@@ -1,7 +1,7 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: N1 — Push Notifications (FIX APPLIED — DEV BUILD IN PROGRESS)
-## Last session: 2026-06-09
+## Current milestone: N1.5 — Weather column on plant_events (next)
+## Last session: 2026-06-14
 
 ### What's done
 
@@ -91,7 +91,7 @@
 - Camera permission (`AddPlantScreen.tsx`): explicit `requestCameraPermissionsAsync()` before launching camera, alert if denied
 - TypeScript compiles cleanly (`npx tsc --noEmit` passes)
 
-#### N1 — Push Notifications (FIX APPLIED — DEV BUILD IN PROGRESS)
+#### N1 — Push Notifications (COMPLETE — verified end-to-end 2026-06-14)
 - Installed `expo-notifications`, `expo-device`, `expo-constants`, `expo-dev-client`
 - Created `src/lib/notifications.ts` — `registerForPushNotifications()`:
   - Lazy-requires `expo-notifications` inside the function (NOT at module top level — see "Root cause" below)
@@ -121,41 +121,33 @@
 - Fix: changed to lazy `require()` inside `registerForPushNotifications()`, gated behind `Constants.appOwnership === "expo"` early-return. App now boots cleanly in Expo Go (registration is a no-op there).
 - Verified: confirmed via dev server log `LOG  Push notifications skipped: Expo Go does not support remote push since SDK 53` after login.
 
-### What's in progress
+### Session 2026-06-14 — N1 verified end-to-end
 
-**EAS dev build #2 running (2026-06-09 night)** — Android APK with FCM config.
-- Will be visible at https://expo.dev/accounts/robi29/projects/plantdiary/builds when finished (~20-30 min from 22:55 local).
-- Build kicked off in background; check the URL above to find the new APK install link.
+- Dev build #2 (Android APK with FCM config) installed on physical device.
+- Metro connected via `npx expo start --dev-client`.
+- Login → OS permission prompt → Allow → registration succeeded silently.
+- Token persisted to `profiles` (userId `77f930ea-e552-486a-ab27-f5338bec1e33`, token `ExponentPushToken[u1H7cNNDSK3MieH60S-An0]`).
+- Direct Expo Push API test landed on device.
+- `send-watering-reminders` edge function fired via curl with service_role key → `{"sent":1,"total_users":1}` → notification *"Calla needs water today"* arrived → confirms context-aware payload (PRD §7 N1 promise).
+- Non-fatal `expo-notifications` WARN observed twice during registration: `"fetch failed: Fetch request has been canceled"` — internal Expo server token-sync retry. Token retrieval still succeeded. Not a blocker; revisit only if it recurs in field use.
 
-**Build #1 history (for context):**
-- Build #1 succeeded but failed at runtime when logging in: `Unable to get Firebase Messaging instance. Did you configure googleServicesFile path in app config? ... Default FirebaseApp is not initialized`.
-- Cause: Android push notifications in a standalone (non-Expo Go) build require Firebase Cloud Messaging (FCM). Expo Push Service relays through FCM, not directly to devices.
-- Fix applied before build #2:
-  - Created Firebase project `plantdiary-b4b24` with Android app for `com.robi29.plantdiary`.
-  - Downloaded `google-services.json` → placed in project root → gitignored.
-  - Downloaded FCM V1 service account key (`plantdiary-b4b24-firebase-adminsdk.json`) → placed in project root → gitignored.
-  - Added `android.googleServicesFile: "./google-services.json"` to `app.json`.
-  - Uploaded FCM V1 service account to EAS Credentials (`eas credentials` → Android → development → FCM V1).
+### Dev tooling added this session
 
-### Next session — verification steps
+- `src/lib/logger.ts` — tagged, timestamped logger (`log.info/warn/error("push"|"auth"|"weather"|"ai"|"events"|"nav"|"app", message, data?)`). Wired into `notifications.ts` and `App.tsx` push-registration path. Replaces scattered `console.log`. Pure JS — no native rebuild.
+- `app.config.js` — extends `app.json` to let `GOOGLE_SERVICES_JSON` env var override the local Firebase config path during EAS builds. Local default still `./google-services.json`.
 
-1. Check build #2 status at https://expo.dev/accounts/robi29/projects/plantdiary/builds. If finished, open the new build's install link on your Android phone and install the new APK.
-2. In Mac terminal: `npx expo start --dev-client`
-3. Open the new plantdiary app on phone. Log in.
-4. Expect the OS permission prompt: *"Allow plantdiary to send you notifications?"* — tap Allow.
-5. Watch the Metro terminal for the registration log — should NOT see "skipped" or "Firebase Messaging" errors. Should silently succeed.
-6. Verify token in Supabase SQL Editor (https://supabase.com/dashboard/project/xsqklmpgibpznfbpuyxe/sql/new):
-   ```sql
-   select id, push_token, updated_at from profiles;
-   ```
-   Expect one row with `push_token = ExponentPushToken[...]`.
-7. Trigger edge function manually (SERVICE_ROLE_KEY in Supabase dashboard → Settings → API):
-   ```
-   curl -X POST 'https://xsqklmpgibpznfbpuyxe.supabase.co/functions/v1/send-watering-reminders' \
-     -H 'Authorization: Bearer <SERVICE_ROLE_KEY>'
-   ```
-   If at least one plant has `water_today` or `check` status, a notification should arrive on the phone.
-8. **Once verified: N1 is complete.** Ship N1.5 (weather column on `plant_events`) immediately — see "Immediate next action" below.
+### Data cleanup this session
+
+- Orphan plant `Calla` id=`6fcac1f8-ed09-4bbf-99b9-2cfe97def1b9` was owned by an unknown auth user `0bb661bf-cbaf-4457-99b8-ef4a20b9a0c8` (likely from a discarded test signup before email confirmation was disabled). Reassigned to current user `77f930ea-…` via direct SQL update so the edge function had a real overdue plant to push about. The orphan account itself may still exist in `auth.users` — not yet cleaned.
+
+### Phase 3 (deferred) — Sentry crash tracking
+
+Plan agreed: install `@sentry/react-native` + Expo plugin, wire DSN, trigger EAS build #3. Skipped this session in favour of shipping N1.5 first (calendar-gating). Sentry account/DSN not yet created.
+
+### Build #1 history (kept for posterity)
+
+- Build #1 succeeded but failed at runtime: `Unable to get Firebase Messaging instance ... Default FirebaseApp is not initialized`.
+- Fix applied before build #2: Firebase project `plantdiary-b4b24` + `google-services.json` in root (gitignored) + FCM V1 service account uploaded to EAS Credentials + `android.googleServicesFile` in `app.json`.
 
 ### Files in project root (gitignored)
 - `google-services.json` — Firebase Android client config
@@ -173,7 +165,7 @@
 
 Build order, not user-facing priority. Full rationale in PRD §7.
 
-- **N1 — Push notifications (context-aware payloads).** In progress. Payload body must read from user data, not species defaults.
+- **N1 — Push notifications (context-aware payloads).** ✅ Complete (verified 2026-06-14). Payload body reads from user data ("Calla needs water today"). Next iteration: weather-aware payload bodies once N1.5 lands.
 - **N1.5 — Weather column on `plant_events`.** *Highest-leverage 1-hour change in the project.* `weather` JSONB populated silently by `logEvent`/`logWatering` from existing `fetchWeather()`. Ships before anything else once N1 is verified. **Calendar-gating** — the Day 30 north-star moment goes live ~30 days after this lands.
 - **N2 — AI Learning (per-plant watering frequency).** Propose updates with evidence, never silent change. Confidence visibly tightens with N. This is the core differentiator and what everything below reads from.
 - **N3 — Event-triggered Advisor.** Replaces the old "daily" advisor. Surfaces only when forecast + plant state intersect. Silent on uneventful days.
@@ -250,6 +242,7 @@ plantdiary/
 ├── src/
 │   ├── lib/
 │   │   ├── supabase.ts      # Supabase client config
+│   │   ├── logger.ts        # log.info/warn/error(tag, message, data?) — tagged JS logger
 │   │   ├── notifications.ts # registerForPushNotifications() — Expo push token
 │   │   ├── watering.ts      # getWateringStatus(), daysSinceWatered()
 │   │   ├── weather.ts       # fetchWeather() — Open-Meteo API
@@ -277,6 +270,7 @@ plantdiary/
 │   └── workflows/
 │       └── watering-reminders.yml  # Daily cron → edge function for push notifications
 ├── app.json                 # Expo config (incl. android.package, eas.projectId)
+├── app.config.js            # Wraps app.json; allows GOOGLE_SERVICES_JSON env override for EAS
 ├── eas.json                 # EAS build profiles: development (APK + dev client), preview, production
 ├── .env                     # Supabase credentials (gitignored)
 └── CONTEXT.md               # This file

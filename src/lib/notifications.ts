@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
+import { log } from "./logger";
 
 const isExpoGo = Constants.appOwnership === "expo";
 
@@ -12,16 +13,16 @@ const isExpoGo = Constants.appOwnership === "expo";
 export async function registerForPushNotifications(): Promise<string | null> {
   try {
     if (isExpoGo) {
-      console.log(
-        "Push notifications skipped: Expo Go does not support remote push since SDK 53. Use a development build to test."
-      );
+      log.warn("push", "Skipped: Expo Go does not support remote push since SDK 53. Use a dev build.");
       return null;
     }
 
     if (!Device.isDevice) {
-      console.log("Push notifications require a physical device");
+      log.warn("push", "Skipped: physical device required");
       return null;
     }
+
+    log.info("push", "Registering for push notifications…");
 
     const Notifications = require("expo-notifications");
 
@@ -51,7 +52,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
     }
 
     if (finalStatus !== "granted") {
-      console.log("Notification permission denied");
+      log.warn("push", "Permission denied by user");
       return null;
     }
 
@@ -60,9 +61,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
       Constants.easConfig?.projectId;
 
     if (!projectId) {
-      console.warn(
-        "No EAS projectId found. Run 'eas init' to configure your project for push notifications."
-      );
+      log.warn("push", "No EAS projectId — run 'eas init'");
       return null;
     }
 
@@ -70,9 +69,10 @@ export async function registerForPushNotifications(): Promise<string | null> {
       projectId,
     });
 
+    log.info("push", "Got Expo push token", tokenData.data);
     return tokenData.data;
   } catch (err) {
-    console.error("Failed to register for push notifications:", err);
+    log.error("push", "Registration failed", err);
     return null;
   }
 }
