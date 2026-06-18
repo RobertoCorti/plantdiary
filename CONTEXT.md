@@ -231,7 +231,9 @@ Phase 3 (Sentry) still queued — wire alongside next native-deps change to avoi
 - Persistent dismissal for the N2 proposal card (only matters if "Keep" → re-show on next mount proves annoying in real use).
 - Optimistic UI on the N2 Update button (~1s weather-capture latency is visible but harmless).
 - `AGENTS.md` line 78 model-pin rule wording — currently pins a now-retired snapshot.
-- Photo check-in: model bump committed to code, but `supabase functions deploy analyze-plant && supabase functions deploy identify-plant` must be run to take effect in prod. Verify after deploy.
+- Photo check-in: model bump + JSON fence-strip both deployed and verified.
+
+**Architectural decision deferred (2026-06-18):** AI workflows stay in Supabase Edge Functions (Deno) through N3-N6. After N6 verified end-to-end, migrate `analyze-plant`, `identify-plant`, and the N3 advisor to a Python backend in a `backend/` subfolder of this repo: `uv` + FastAPI + Anthropic Python SDK + Pydantic v2 + prompt caching, hosted on Fly.io. Supabase keeps auth/DB/storage/push cron. Backend stateless v1; client still writes events. Do not relitigate the stack — full rationale in memory `project_python_backend_deferred.md`.
 
 ### Dev workflow
 
