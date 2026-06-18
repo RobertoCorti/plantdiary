@@ -6,6 +6,7 @@ import {
   Image,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -391,7 +392,13 @@ export default function PlantProfileScreen({
             </Text>
           ) : null}
           {analysis ? (
-            <View style={styles.analysisInline}>
+            <Pressable
+              style={styles.analysisInline}
+              onPress={() => {
+                setAnalysisResult(analysis);
+                setShowAnalysisModal(true);
+              }}
+            >
               <View
                 style={[
                   styles.analysisBadgeSmall,
@@ -415,7 +422,8 @@ export default function PlantProfileScreen({
                   {analysis.recommended_action}
                 </Text>
               ) : null}
-            </View>
+              <Text style={styles.analysisExpandHint}>Tap to read more →</Text>
+            </Pressable>
           ) : null}
         </View>
       </View>
@@ -584,48 +592,61 @@ export default function PlantProfileScreen({
         onRequestClose={() => setShowAnalysisModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, styles.analysisModalContent]}>
             {analysisResult && (
               <>
-                <Text style={styles.modalTitle}>Photo Analysis</Text>
-                <View
-                  style={[
-                    styles.analysisBadge,
-                    {
-                      backgroundColor:
-                        ANALYSIS_STATUS_CONFIG[analysisResult.status].bg,
-                    },
-                  ]}
+                <View style={styles.analysisModalHeader}>
+                  <Text style={[styles.modalTitle, { marginBottom: 0 }]}>
+                    Photo Analysis
+                  </Text>
+                  <Pressable
+                    style={styles.modalCloseButton}
+                    onPress={() => setShowAnalysisModal(false)}
+                    hitSlop={12}
+                    accessibilityLabel="Close"
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.modalCloseButtonText}>×</Text>
+                  </Pressable>
+                </View>
+                <ScrollView
+                  style={styles.analysisModalScroll}
+                  contentContainerStyle={styles.analysisModalScrollContent}
+                  showsVerticalScrollIndicator
                 >
-                  <Text
+                  <View
                     style={[
-                      styles.analysisBadgeLabelText,
+                      styles.analysisBadge,
                       {
-                        color:
-                          ANALYSIS_STATUS_CONFIG[analysisResult.status].text,
+                        backgroundColor:
+                          ANALYSIS_STATUS_CONFIG[analysisResult.status].bg,
                       },
                     ]}
                   >
-                    {ANALYSIS_STATUS_CONFIG[analysisResult.status].label}
-                  </Text>
-                </View>
-                <Text style={styles.analysisModalObservations}>
-                  {analysisResult.observations}
-                </Text>
-                {analysisResult.recommended_action ? (
-                  <View style={styles.actionBox}>
-                    <Text style={styles.actionLabel}>Recommended Action</Text>
-                    <Text style={styles.actionText}>
-                      {analysisResult.recommended_action}
+                    <Text
+                      style={[
+                        styles.analysisBadgeLabelText,
+                        {
+                          color:
+                            ANALYSIS_STATUS_CONFIG[analysisResult.status].text,
+                        },
+                      ]}
+                    >
+                      {ANALYSIS_STATUS_CONFIG[analysisResult.status].label}
                     </Text>
                   </View>
-                ) : null}
-                <Pressable
-                  style={styles.submitButton}
-                  onPress={() => setShowAnalysisModal(false)}
-                >
-                  <Text style={styles.submitButtonText}>Done</Text>
-                </Pressable>
+                  <Text style={styles.analysisModalObservations}>
+                    {analysisResult.observations}
+                  </Text>
+                  {analysisResult.recommended_action ? (
+                    <View style={styles.actionBox}>
+                      <Text style={styles.actionLabel}>Recommended Action</Text>
+                      <Text style={styles.actionText}>
+                        {analysisResult.recommended_action}
+                      </Text>
+                    </View>
+                  ) : null}
+                </ScrollView>
               </>
             )}
           </View>
@@ -980,6 +1001,44 @@ const styles = StyleSheet.create({
     color: "#c0392b",
     marginTop: 4,
     fontStyle: "italic",
+  },
+  analysisExpandHint: {
+    fontSize: 11,
+    color: "#5a7029",
+    fontWeight: "600",
+    marginTop: 8,
+    textAlign: "right",
+  },
+  analysisModalContent: {
+    maxHeight: "80%",
+  },
+  analysisModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#f0f4ea",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCloseButtonText: {
+    fontSize: 22,
+    color: "#5a7029",
+    fontWeight: "600",
+    lineHeight: 24,
+    marginTop: -2,
+  },
+  analysisModalScroll: {
+    flexGrow: 0,
+    marginBottom: 16,
+  },
+  analysisModalScrollContent: {
+    paddingBottom: 4,
   },
   bottomButtons: {
     position: "absolute",
