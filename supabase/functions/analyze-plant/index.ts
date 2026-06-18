@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-sonnet-4-6",
           max_tokens: 1024,
           system: SYSTEM_PROMPT,
           messages: [
@@ -139,7 +139,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const result = JSON.parse(textContent.text);
+    const cleaned = textContent.text
+      .trim()
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+    const result = JSON.parse(cleaned);
 
     return new Response(JSON.stringify(result), {
       headers: {

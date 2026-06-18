@@ -1,5 +1,5 @@
 type LogLevel = "info" | "warn" | "error";
-type LogTag = "push" | "auth" | "weather" | "ai" | "events" | "nav" | "app";
+type LogTag = "push" | "auth" | "weather" | "ai" | "events" | "nav" | "app" | "learning";
 
 function emit(level: LogLevel, tag: LogTag, message: string, data?: unknown) {
   const ts = new Date().toISOString().slice(11, 23);

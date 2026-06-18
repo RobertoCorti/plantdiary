@@ -1,7 +1,7 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: N2 — AI Learning, per-plant watering frequency (next)
-## Last session: 2026-06-14
+## Current milestone: N3 — Event-triggered Advisor (next)
+## Last session: 2026-06-18
 
 ### What's done
 
@@ -121,6 +121,31 @@
 - Fix: changed to lazy `require()` inside `registerForPushNotifications()`, gated behind `Constants.appOwnership === "expo"` early-return. App now boots cleanly in Expo Go (registration is a no-op there).
 - Verified: confirmed via dev server log `LOG  Push notifications skipped: Expo Go does not support remote push since SDK 53` after login.
 
+#### N2 — AI Learning, per-plant watering frequency (COMPLETE — verified end-to-end 2026-06-18)
+- `src/lib/learning.ts` — `proposeFrequency(supabase, plant)`:
+  - Fetches all `event_type = 'watered'` rows for the plant, ordered ascending.
+  - Returns `null` when `< 5` waterings OR `plant.watering_frequency_days === null` OR `Math.round(median(intervals)) === current`.
+  - Otherwise returns `{ proposed_days, current_days, median_days, count, confidence }`.
+  - Confidence buckets are count-based for v1: `<5` low (filtered out), `5–9` medium, `≥10` high. Variance/IQR tightening deferred.
+- `src/lib/events.ts` — `acceptFrequencyProposal(supabase, plantId, userId, proposal)`:
+  - Inserts a `frequency_updated` `plant_event` with structured notes (`"Schedule updated 7 → 9 days (median 9.2d over 12 waterings, confidence medium)"`).
+  - Updates `plants.watering_frequency_days` to the proposed value.
+  - Awaits `captureWeather()` like every other event, so this row also carries N1.5 context for future N4 narratives. This is the ~1s latency the user sees on Update.
+- `src/types/index.ts`: added `frequency_updated` to `PlantEvent.event_type` union and new `FrequencyProposal` type.
+- `src/lib/logger.ts`: added `learning` tag.
+- `PlantProfileScreen.tsx`:
+  - Calls `proposeFrequency()` inside `fetchData()`, stores result in `proposal` state.
+  - Renders "Schedule suggestion" card between care stats and timeline when `proposal && !proposalDismissed`. Shows median (1 decimal), count, current schedule, proposed schedule, and confidence badge.
+  - `Keep` flips `proposalDismissed` for the current screen mount only — re-shows on next fresh navigation. No persistent dismissal yet (deferred until it proves annoying).
+  - `Update` runs `acceptFrequencyProposal` → updates local `plant` state → clears proposal → refetches events. Timeline picks up the new `frequency_updated` row with the 📊 icon and "Schedule updated" label.
+- Verified on device 2026-06-18: tapped Update on a plant proposal, observed ~1s delay (weather capture), `plants.watering_frequency_days` persisted, `frequency_updated` row appeared in `plant_events`.
+- **No DB migration** — `event_type` is free text at the SQL layer. No edge function — pure client computation. **The personal model now exists**; N3+ can read from it.
+
+#### Model ID bump (2026-06-18)
+- Both edge functions (`identify-plant`, `analyze-plant`) pinned `claude-sonnet-4-20250514`. That snapshot is retired; the API returned 404 on photo check-in, our wrapper rewrapped as 502.
+- Bumped both to `claude-sonnet-4-6` (current stable Sonnet). User must run `supabase functions deploy analyze-plant && supabase functions deploy identify-plant` to deploy.
+- `AGENTS.md` line 78 still says *"AI model: always `claude-sonnet-4-20250514`"* — stale rule. Either change to rolling-pin wording or accept that it must be revisited on each Anthropic model retirement.
+
 #### N1.5 — Weather column on plant_events (COMPLETE — verified end-to-end 2026-06-14)
 - Migration `00003_plant_events_weather.sql`: `alter table plant_events add column weather jsonb;`. Existing rows NULL = "not yet attempted" baseline.
 - `src/lib/location.ts` — `getCurrentCoordsOrNull()`. Requests foreground permission if not granted, returns null on any failure. Live GPS per event (Balanced accuracy ≈ <1s on warm cache).
@@ -175,8 +200,8 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 
 - **N1 — Push notifications (context-aware payloads).** ✅ Complete (verified 2026-06-14). Payload body reads from user data ("Calla needs water today"). Next iteration: weather-aware payload bodies once N1.5 lands.
 - **N1.5 — Weather column on `plant_events`.** ✅ Complete (verified 2026-06-14). `weather` JSONB populated by `captureWeather()` on every `logEvent`/`logWatering`. Day 30 moment is now calendar-counting from here.
-- **N2 — AI Learning (per-plant watering frequency).** Propose updates with evidence, never silent change. Confidence visibly tightens with N. This is the core differentiator and what everything below reads from.
-- **N3 — Event-triggered Advisor.** Replaces the old "daily" advisor. Surfaces only when forecast + plant state intersect. Silent on uneventful days.
+- **N2 — AI Learning (per-plant watering frequency).** ✅ Complete (verified 2026-06-18). Median-based proposal, count-based confidence, structural honesty (numbers not prose), no silent change. Personal model now exists.
+- **N3 — Event-triggered Advisor.** Replaces the old "daily" advisor. Surfaces only when forecast + plant state intersect. Silent on uneventful days. Reads from N2's learned `watering_frequency_days`.
 - **N4 — Plant Journal View.** Monthly Claude-generated narrative + photo gallery + milestone feed. Auto-feeds from N1.5/N2 outputs.
 - **N5 — Slow-drift detector.** Replaces the cut 1–10 health score. Compares latest photo to 4–6 week rolling baseline; direction + evidence, no scalar.
 - **N6 — Shared Plants.** Named in PRD §3 as a key differentiator vs competitors. Deferred to N6 only because the personal model needs to be working first.
@@ -189,16 +214,24 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 
 ### Immediate next action
 
-**Start N2 — AI Learning (per-plant watering frequency).** With N1.5 live, every new event accrues weather context that N2 can read. Scope (proposed, refine at session start):
-1. After a plant has ≥ N watering events (try N=5 to keep test cycles short), compute median observed interval from `plant_events` rows.
-2. Edge function `propose-watering-frequency` returns `{ proposed_days, confidence, evidence: { count, median_days, current_days } }`.
-3. In-app card on Plant Profile: *"You've watered Giorgio every X days on average; species default is Y. Update to X? [Update] [Keep]"*. Never silently change.
-4. On Update, persist new `watering_frequency_days` on `plants` and log a `frequency_updated` event (consider whether this needs a new event_type or just an observation).
-5. Confidence: simple count-based at first (low <5, medium 5–9, high ≥10). Tighten with variance later.
+**Start N3 — Event-triggered Advisor.** N2 just shipped, so we now have a per-plant learned `watering_frequency_days` to read from. Scope (proposed, refine at session start):
+1. Trigger conditions (intersection of forecast + plant state). Examples to spec:
+   - Heatwave incoming (next 3 days max temp > rolling avg + 5°C) AND plant due to dry within forecast window.
+   - Sustained drop in humidity vs. recent average AND species marked humidity-sensitive.
+   - Multiple plants intersecting → batch into one notification, not N.
+2. Reuse the `send-watering-reminders` cron / edge function pattern. Probably a new `send-advisor-tips` function on a daily schedule.
+3. Output: a notification with a *specific* observation, never a generic "check your plants". Same standard as N1 — payload reads from user data.
+4. **Silent on uneventful days.** No padding. If nothing intersects, no notification. This is the structural-honesty contract from PRD §7.
 
-Defer: weather-aware adjustment (needs more data per season). Slot for after first round of real proposals lands.
+Defer until first round of real triggers fires: weather-trend-aware adjustment to the N2 proposal itself (recompute median against same-season historicals only). Needs more `weather` data accumulated first.
 
-Phase 3 (Sentry) also still queued — wire alongside next native-deps change to avoid an extra rebuild.
+Phase 3 (Sentry) still queued — wire alongside next native-deps change to avoid an extra rebuild.
+
+**Open follow-ups from 2026-06-18 not yet acted on:**
+- Persistent dismissal for the N2 proposal card (only matters if "Keep" → re-show on next mount proves annoying in real use).
+- Optimistic UI on the N2 Update button (~1s weather-capture latency is visible but harmless).
+- `AGENTS.md` line 78 model-pin rule wording — currently pins a now-retired snapshot.
+- Photo check-in: model bump committed to code, but `supabase functions deploy analyze-plant && supabase functions deploy identify-plant` must be run to take effect in prod. Verify after deploy.
 
 ### Dev workflow
 
@@ -264,7 +297,8 @@ plantdiary/
 │   │   ├── notifications.ts # registerForPushNotifications() — Expo push token
 │   │   ├── watering.ts      # getWateringStatus(), daysSinceWatered()
 │   │   ├── weather.ts       # fetchWeather() — Open-Meteo API
-│   │   └── events.ts        # logWatering()/logEvent() — silently capture weather; fetchPlantEvents()
+│   │   ├── events.ts        # logWatering()/logEvent()/acceptFrequencyProposal() — silently capture weather; fetchPlantEvents()
+│   │   └── learning.ts      # proposeFrequency() — median-interval N2 proposal, count-based confidence
 │   ├── screens/
 │   │   ├── AuthScreen.tsx    # Sign up / log in
 │   │   ├── HomeScreen.tsx    # Today Screen: weather + watering status + tappable plant cards

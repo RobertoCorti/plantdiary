@@ -17,12 +17,18 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { getWateringStatus } from "../lib/watering";
-import { logEvent, fetchPlantEvents } from "../lib/events";
+import {
+  acceptFrequencyProposal,
+  fetchPlantEvents,
+  logEvent,
+} from "../lib/events";
+import { proposeFrequency } from "../lib/learning";
 import type {
+  AIPhotoAnalysisResult,
+  FrequencyProposal,
   Plant,
   PlantEvent,
   WateringStatus,
-  AIPhotoAnalysisResult,
 } from "../types";
 import type { RootStackParamList } from "../../App";
 
@@ -59,6 +65,7 @@ const EVENT_ICONS: Record<PlantEvent["event_type"], string> = {
   repotted: "🪴",
   observation: "👁",
   photo: "📷",
+  frequency_updated: "📊",
 };
 
 const EVENT_LABELS: Record<PlantEvent["event_type"], string> = {
@@ -67,6 +74,16 @@ const EVENT_LABELS: Record<PlantEvent["event_type"], string> = {
   repotted: "Repotted",
   observation: "Observation",
   photo: "Photo Check-In",
+  frequency_updated: "Schedule updated",
+};
+
+const CONFIDENCE_CONFIG: Record<
+  FrequencyProposal["confidence"],
+  { label: string; bg: string; text: string }
+> = {
+  low: { label: "low", bg: "#fff8e1", text: "#f39c12" },
+  medium: { label: "medium", bg: "#e3f2fd", text: "#1976d2" },
+  high: { label: "high", bg: "#e8f5e9", text: "#2d5016" },
 };
 
 function relativeTime(dateStr: string): string {
@@ -112,6 +129,9 @@ export default function PlantProfileScreen({
   const [analysisResult, setAnalysisResult] =
     useState<AIPhotoAnalysisResult | null>(null);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [proposal, setProposal] = useState<FrequencyProposal | null>(null);
+  const [proposalDismissed, setProposalDismissed] = useState(false);
+  const [accepting, setAccepting] = useState(false);
   const isFocused = useIsFocused();
 
   const fetchData = useCallback(async () => {
@@ -122,7 +142,12 @@ export default function PlantProfileScreen({
         fetchPlantEvents(supabase, plantId),
       ]);
       if (plantResult.error) throw plantResult.error;
-      if (plantResult.data) setPlant(plantResult.data as Plant);
+      if (plantResult.data) {
+        const fetchedPlant = plantResult.data as Plant;
+        setPlant(fetchedPlant);
+        const prop = await proposeFrequency(supabase, fetchedPlant);
+        setProposal(prop);
+      }
       setEvents(eventsResult);
     } catch {
       Alert.alert("Error", "Could not load plant data. Please go back and try again.");
@@ -183,6 +208,27 @@ export default function PlantProfileScreen({
       Alert.alert("Error", "Could not save event. Please try again.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleAcceptProposal() {
+    if (!proposal || !plant) return;
+    setAccepting(true);
+    try {
+      await acceptFrequencyProposal(
+        supabase,
+        plantId,
+        session.user.id,
+        proposal
+      );
+      setPlant({ ...plant, watering_frequency_days: proposal.proposed_days });
+      setProposal(null);
+      const updated = await fetchPlantEvents(supabase, plantId);
+      setEvents(updated);
+    } catch {
+      Alert.alert("Error", "Could not update schedule. Please try again.");
+    } finally {
+      setAccepting(false);
     }
   }
 
@@ -437,6 +483,71 @@ export default function PlantProfileScreen({
                 <Text style={styles.statLabel}>Events (30 days)</Text>
               </View>
             </View>
+
+            {/* Frequency proposal */}
+            {proposal && !proposalDismissed ? (
+              <View style={styles.proposalCard}>
+                <Text style={styles.proposalEyebrow}>Schedule suggestion</Text>
+                <Text style={styles.proposalBody}>
+                  You've watered{" "}
+                  <Text style={styles.proposalBold}>{plant.name}</Text> every{" "}
+                  <Text style={styles.proposalBold}>
+                    {proposal.median_days.toFixed(1)} days
+                  </Text>{" "}
+                  on average, across {proposal.count} waterings.
+                </Text>
+                <Text style={styles.proposalBody}>
+                  Current schedule: every {proposal.current_days} days.
+                </Text>
+                <Text style={styles.proposalQuestion}>
+                  Update to {proposal.proposed_days} days?
+                </Text>
+                <View style={styles.proposalConfidenceRow}>
+                  <Text style={styles.proposalConfidenceLabel}>Confidence</Text>
+                  <View
+                    style={[
+                      styles.confidenceBadge,
+                      {
+                        backgroundColor:
+                          CONFIDENCE_CONFIG[proposal.confidence].bg,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.confidenceText,
+                        { color: CONFIDENCE_CONFIG[proposal.confidence].text },
+                      ]}
+                    >
+                      {CONFIDENCE_CONFIG[proposal.confidence].label}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.proposalActions}>
+                  <Pressable
+                    style={styles.proposalKeepButton}
+                    onPress={() => setProposalDismissed(true)}
+                    disabled={accepting}
+                  >
+                    <Text style={styles.proposalKeepText}>Keep</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.proposalUpdateButton,
+                      accepting && styles.submitButtonDisabled,
+                    ]}
+                    onPress={handleAcceptProposal}
+                    disabled={accepting}
+                  >
+                    {accepting ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.proposalUpdateText}>Update</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
 
             {/* Timeline header */}
             <Text style={styles.sectionTitle}>Timeline</Text>
@@ -713,6 +824,91 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginTop: 24,
     marginBottom: 12,
+  },
+  proposalCard: {
+    marginHorizontal: 24,
+    marginTop: 20,
+    backgroundColor: "#f4f8ee",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#cfdcb8",
+    padding: 16,
+  },
+  proposalEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#5a7029",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  proposalBody: {
+    fontSize: 14,
+    color: "#3a4a20",
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  proposalBold: {
+    fontWeight: "700",
+    color: "#2d5016",
+  },
+  proposalQuestion: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#2d5016",
+    marginTop: 12,
+  },
+  proposalConfidenceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    gap: 8,
+  },
+  proposalConfidenceLabel: {
+    fontSize: 12,
+    color: "#5a7029",
+    fontWeight: "600",
+  },
+  confidenceBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  confidenceText: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  proposalActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+  },
+  proposalKeepButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#cfdcb8",
+    backgroundColor: "#fff",
+    alignItems: "center",
+  },
+  proposalKeepText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#5a7029",
+  },
+  proposalUpdateButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#2d5016",
+    alignItems: "center",
+  },
+  proposalUpdateText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
   },
   emptyTimeline: {
     fontSize: 14,

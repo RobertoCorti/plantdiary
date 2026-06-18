@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PlantEvent, WeatherData } from "../types";
+import type { FrequencyProposal, PlantEvent, WeatherData } from "../types";
 import { fetchWeather } from "./weather";
 import { getCurrentCoordsOrNull } from "./location";
 import { log } from "./logger";
@@ -76,6 +76,36 @@ export async function logEvent(
 
     if (updateError) throw updateError;
   }
+}
+
+export async function acceptFrequencyProposal(
+  supabase: SupabaseClient,
+  plantId: string,
+  userId: string,
+  proposal: FrequencyProposal
+): Promise<void> {
+  const now = new Date().toISOString();
+  const weather = await captureWeather();
+
+  const notes = `Schedule updated ${proposal.current_days} → ${proposal.proposed_days} days (median ${proposal.median_days.toFixed(1)}d over ${proposal.count} waterings, confidence ${proposal.confidence}).`;
+
+  const { error: eventError } = await supabase.from("plant_events").insert({
+    plant_id: plantId,
+    user_id: userId,
+    event_type: "frequency_updated",
+    notes,
+    weather,
+    created_at: now,
+  });
+
+  if (eventError) throw eventError;
+
+  const { error: updateError } = await supabase
+    .from("plants")
+    .update({ watering_frequency_days: proposal.proposed_days, updated_at: now })
+    .eq("id", plantId);
+
+  if (updateError) throw updateError;
 }
 
 export async function fetchPlantEvents(

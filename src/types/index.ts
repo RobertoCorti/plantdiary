@@ -15,12 +15,26 @@ export type PlantEvent = {
   id: string;
   plant_id: string;
   user_id: string;
-  event_type: "watered" | "fertilized" | "repotted" | "photo" | "observation";
+  event_type:
+    | "watered"
+    | "fertilized"
+    | "repotted"
+    | "photo"
+    | "observation"
+    | "frequency_updated";
   notes: string | null;
   photo_url: string | null;
   ai_analysis: string | null;
   weather: WeatherData | null;
   created_at: string;
+};
+
+export type FrequencyProposal = {
+  proposed_days: number;
+  current_days: number;
+  median_days: number;
+  count: number;
+  confidence: "low" | "medium" | "high";
 };
 
 export type WateringStatus = "water_today" | "ok" | "check";
