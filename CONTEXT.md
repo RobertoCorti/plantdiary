@@ -141,10 +141,17 @@
 - Verified on device 2026-06-18: tapped Update on a plant proposal, observed ~1s delay (weather capture), `plants.watering_frequency_days` persisted, `frequency_updated` row appeared in `plant_events`.
 - **No DB migration** — `event_type` is free text at the SQL layer. No edge function — pure client computation. **The personal model now exists**; N3+ can read from it.
 
-#### Model ID bump (2026-06-18)
-- Both edge functions (`identify-plant`, `analyze-plant`) pinned `claude-sonnet-4-20250514`. That snapshot is retired; the API returned 404 on photo check-in, our wrapper rewrapped as 502.
-- Bumped both to `claude-sonnet-4-6` (current stable Sonnet). User must run `supabase functions deploy analyze-plant && supabase functions deploy identify-plant` to deploy.
-- `AGENTS.md` line 78 still says *"AI model: always `claude-sonnet-4-20250514`"* — stale rule. Either change to rolling-pin wording or accept that it must be revisited on each Anthropic model retirement.
+#### Edge function fixes (2026-06-18, deployed + verified)
+- Both edge functions (`identify-plant`, `analyze-plant`) pinned the retired `claude-sonnet-4-20250514` snapshot. API returned 404, our wrapper rewrapped as 502. Bumped both to `claude-sonnet-4-6` (current stable Sonnet).
+- Sonnet occasionally wraps structured output in markdown fences (` ```json …``` `) even with "respond ONLY with JSON" in the system prompt. Both functions now strip leading/trailing ` ``` `/` ```json ` before `JSON.parse` — fence-strip regex applied symmetrically in both files. Add this pattern to any new edge function that asks the model for JSON.
+- Both fixes verified end-to-end on device after `supabase functions deploy analyze-plant && supabase functions deploy identify-plant`.
+- `AGENTS.md` line 78 still says *"AI model: always `claude-sonnet-4-20250514`"* — stale rule, not yet rewritten.
+
+#### Photo analysis modal UX polish (2026-06-18)
+- Inline analysis block in the timeline was clamped to 3 lines with no expand affordance — user couldn't read full observations. Now a `Pressable`; tapping opens the existing photo-analysis modal with the full content. Added a "Tap to read more →" hint to make the affordance visible.
+- Modal body wrapped in `ScrollView` with `analysisModalContent` capped at `maxHeight: "80%"`. Long observations + recommended action scroll within the sheet instead of pushing controls off-screen on smaller phones.
+- Removed the bottom green "Done" bar (read as a confusing primary CTA on a read-only sheet). Replaced with a small 32×32 round `×` close button in the top-right of the modal header — light-green tint (`#f0f4ea`), dark-green glyph, 12pt `hitSlop`, accessibility label "Close". OS back gesture still dismisses via `onRequestClose`.
+- **Pattern worth reusing:** read-only info sheets get a top-right `×`, not a bottom CTA bar. Actionable modals (e.g. Log Event) keep the Cancel/Save row because there's a real commit action.
 
 #### N1.5 — Weather column on plant_events (COMPLETE — verified end-to-end 2026-06-14)
 - Migration `00003_plant_events_weather.sql`: `alter table plant_events add column weather jsonb;`. Existing rows NULL = "not yet attempted" baseline.
@@ -204,9 +211,8 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 - **N3 — Event-triggered Advisor.** Replaces the old "daily" advisor. Surfaces only when forecast + plant state intersect. Silent on uneventful days. Reads from N2's learned `watering_frequency_days`.
 - **N4 — Plant Journal View.** Monthly Claude-generated narrative + photo gallery + milestone feed. Auto-feeds from N1.5/N2 outputs.
 - **N5 — Slow-drift detector.** Replaces the cut 1–10 health score. Compares latest photo to 4–6 week rolling baseline; direction + evidence, no scalar.
-- **N6 — Shared Plants.** Named in PRD §3 as a key differentiator vs competitors. Deferred to N6 only because the personal model needs to be working first.
 - **Small wins (parallel):** plant ID correction loop ("this isn't right" affordance); care stats milestone cards.
-- **Cut:** N5 1–10 health score (fake precision, violates honest-AI). Daily-cadence advisor (forces padding).
+- **Cut:** 1–10 health score (fake precision, violates honest-AI). Daily-cadence advisor (forces padding). **Shared Plants / multi-user ownership (cut 2026-06-18 — keeping app single-user).**
 
 ### North star: the Day 30 moment
 
@@ -233,7 +239,7 @@ Phase 3 (Sentry) still queued — wire alongside next native-deps change to avoi
 - `AGENTS.md` line 78 model-pin rule wording — currently pins a now-retired snapshot.
 - Photo check-in: model bump + JSON fence-strip both deployed and verified.
 
-**Architectural decision deferred (2026-06-18):** AI workflows stay in Supabase Edge Functions (Deno) through N3-N6. After N6 verified end-to-end, migrate `analyze-plant`, `identify-plant`, and the N3 advisor to a Python backend in a `backend/` subfolder of this repo: `uv` + FastAPI + Anthropic Python SDK + Pydantic v2 + prompt caching, hosted on Fly.io. Supabase keeps auth/DB/storage/push cron. Backend stateless v1; client still writes events. Do not relitigate the stack — full rationale in memory `project_python_backend_deferred.md`.
+**Architectural decision deferred (2026-06-18):** AI workflows stay in Supabase Edge Functions (Deno) through N3-N5. After N5 verified end-to-end, migrate `analyze-plant`, `identify-plant`, and the N3 advisor to a Python backend in a `backend/` subfolder of this repo: `uv` + FastAPI + Anthropic Python SDK + Pydantic v2 + prompt caching, hosted on Fly.io. Supabase keeps auth/DB/storage/push cron. Backend stateless v1; client still writes events. (Originally gated on N3-N6 ship; N6 Shared Plants cut 2026-06-18, so the trigger moves up to N5.) Do not relitigate the stack — full rationale in memory `project_python_backend_deferred.md`.
 
 ### Dev workflow
 

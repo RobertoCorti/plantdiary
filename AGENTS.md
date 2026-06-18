@@ -32,10 +32,9 @@ Every feature should serve one of these goals:
 - **N3**: Event-triggered Advisor (replaces "daily" advisor) — silent on uneventful days
 - **N4**: Plant Journal View — monthly narrative + photo gallery + auto-detected milestones
 - **N5**: Slow-drift detector (replaces 1–10 health score) — direction + evidence, no scalar
-- **N6**: Shared Plants — multi-user ownership, deferred only because personal model must work first
 - Small wins (parallel): plant ID correction loop; care stats milestone cards
 
-**Cut:** 1–10 health score (fake precision), daily-cadence advisor (forces padding). See PRD §7 for full rationale.
+**Cut:** 1–10 health score (fake precision), daily-cadence advisor (forces padding), Shared Plants / multi-user ownership (cut 2026-06-18 — keeping the app single-user; personal-model differentiator stands alone). See PRD §7 for full rationale.
 
 ## What NOT to build
 - Social features, sharing, community

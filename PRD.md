@@ -46,7 +46,6 @@ Existing apps (PictureThis, Greg, Planta) give generic care advice based on spec
 -   Learn how _your_ plant in _your_ environment actually behaves
 -   Track the history of individual plants over time
 -   Adapt recommendations based on past observations
--   Support shared care between people living together
 
 ----------
 
@@ -189,12 +188,12 @@ The roadmap is ordered so that every feature compounds the personal model (Strat
 | **N3** | **Event-triggered Advisor** (replaces "Daily Advisor") | AI tip surfaces only when weather forecast + plant state actually intersect ("heatwave incoming, three plants will dry early"). Silent on uneventful days. | Honest AI is structural (Principle 3). Daily cadence forces padding; event cadence forces signal. Reads from N2's learned model. |
 | **N4** | **Plant Journal View** | Monthly narrative (Claude-generated), photo gallery, milestone feed (auto-detected: anniversaries from `created_at`, opportunistic counters; vision-detected milestones later when baseline is stable) | Emotional retention engine (Principle 4). Auto-feeds from milestones produced by N1.5 weather logging, N2 frequency proposals, and photo check-ins. |
 | **N5** | **Slow-drift detector** (replaces 1–10 health score) | Compares latest photo against a rolling 4–6 week baseline, surfaces direction + evidence ("gradual color shift over 6 weeks, here's the comparison"). No scalar score. | A 1–10 score is fake precision and violates Principle 3. Direction + evidence is honest and more useful. |
-| **N6** | **Shared Plants** | Multi-user ownership on a plant (couples, flatmates). Per-user event attribution preserved. | Named in §3 as a key differentiator vs competitors. Roberto's persona explicitly has this need. Deferred to N6 only because it requires the personal model to be working first. |
 | Small wins | **Plant ID correction loop** | "This isn't right" affordance on plant profile that re-prompts identification or lets user override species | A wrong species at add-time poisons every downstream recommendation. Cheap to add, high leverage. |
 | Small wins | **Care stats milestone cards** | "100 days with Giorgio. 14 waterings, 2 fertilizings, 1 scare survived." | Screenshot-worthy. All counters on existing data. <1 day. |
 | Deferred | Seasonal adjustment | Automatic — N2 will pick this up from history once we have a full year of data. Not a separate feature. |
 | Deferred | Community / social | Out of scope per AGENTS.md (no social features). |
 | Deferred | Plant shop integration | Out of scope per AGENTS.md (no marketplace). |
+| **Cut** | **Shared Plants** (was N6) | Multi-user ownership on a plant. Cut 2026-06-18 — keeping the app single-user. The personal-model differentiator stands on its own without multi-tenancy, and removing it simplifies the schema (no join table for plant ownership) and the auth model. Revisit only if usage data shows real demand. |
 
 ### 7.1 North Star — the Day 30 moment
 
@@ -372,7 +371,6 @@ Rules to follow to keep the project healthy and reach completion.
 
 -   Should the MVP support outdoor plants? (complicates weather logic significantly — defer to post-MVP)
 -   Monetization: freemium (up to 3 plants free, unlimited paid) or subscription? Decide before launch.
--   Plant sharing: requires multi-tenancy on plant ownership — defer to post-MVP but design schema to support it
 
 ----------
 
