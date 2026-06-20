@@ -18,6 +18,7 @@ import { supabase } from "../lib/supabase";
 import { getWateringStatus, daysSinceWatered } from "../lib/watering";
 import { fetchWeather } from "../lib/weather";
 import { logWatering } from "../lib/events";
+import { log } from "../lib/logger";
 import type { Plant, WateringStatus, WeatherData } from "../types";
 
 type Props = {
@@ -85,16 +86,28 @@ export default function HomeScreen({ session, navigation }: Props) {
         return;
       }
       const location = await Location.getCurrentPositionAsync({});
-      const data = await fetchWeather(
-        location.coords.latitude,
-        location.coords.longitude
-      );
+      const { latitude, longitude } = location.coords;
+      // Persist last-known coords so the server-side advisor cron (N3) can fetch
+      // a forecast. Fire-and-forget; merges into the profile without clobbering
+      // push_token. Weather display must not depend on this succeeding.
+      supabase
+        .from("profiles")
+        .upsert({
+          id: session.user.id,
+          latitude,
+          longitude,
+          coords_updated_at: new Date().toISOString(),
+        })
+        .then(({ error }) => {
+          if (error) log.warn("weather", "Failed to persist coords", error.message);
+        });
+      const data = await fetchWeather(latitude, longitude);
       setWeather(data);
       setWeatherError(null);
     } catch {
       setWeatherError("Could not load weather");
     }
-  }, []);
+  }, [session.user.id]);
 
   useEffect(() => {
     if (isFocused) {

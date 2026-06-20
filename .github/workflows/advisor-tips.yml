@@ -1,0 +1,16 @@
+name: Send Advisor Tips
+
+on:
+  schedule:
+    - cron: '0 7 * * *' # daily at 07:00 UTC (an hour before watering reminders)
+  workflow_dispatch: # allows manual trigger for testing
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -s -X POST \
+            https://xsqklmpgibpznfbpuyxe.supabase.co/functions/v1/send-advisor-tips \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json"

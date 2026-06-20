@@ -1,7 +1,7 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: N3 — Event-triggered Advisor (next)
-## Last session: 2026-06-18
+## Current milestone: N3 — Event-triggered Advisor (code-complete, pending end-to-end verify)
+## Last session: 2026-06-20
 
 ### What's done
 
@@ -141,6 +141,28 @@
 - Verified on device 2026-06-18: tapped Update on a plant proposal, observed ~1s delay (weather capture), `plants.watering_frequency_days` persisted, `frequency_updated` row appeared in `plant_events`.
 - **No DB migration** — `event_type` is free text at the SQL layer. No edge function — pure client computation. **The personal model now exists**; N3+ can read from it.
 
+#### N3 — Event-triggered Advisor (CODE-COMPLETE 2026-06-20 — NOT yet verified end-to-end)
+- **v1 scope: heatwave trigger only** (decided this session). Humidity-drop trigger deferred — it needs structured species humidity-sensitivity we don't store yet (species is free text).
+- **Coords source decision:** store last-known coords on `profiles` (vs per-event JSONB or client-side local notifications). The advisor cron runs server-side with no GPS, and the `weather` JSONB logged per event never captured lat/lon, so location can't be recovered from history.
+- Migration `00004_profiles_coords.sql`: adds `latitude`, `longitude`, `coords_updated_at` to `profiles`. Existing "users own their profile" RLS covers the new columns; service_role bypasses RLS. **Must be run manually in Supabase SQL Editor.**
+- `HomeScreen.tsx` `loadWeather()`: after getting GPS coords (it already does, for the weather widget), fire-and-forget upserts `{id, latitude, longitude, coords_updated_at}` to `profiles`. Merges without clobbering `push_token`. Weather display never blocks on it; failure only logs a warn. Added `log` import. `loadWeather` dep now `[session.user.id]`.
+- `supabase/functions/send-advisor-tips/index.ts` (new): mirrors the `send-watering-reminders` skeleton (service_role, per-user loop, Expo Push batching, silent when nothing to say).
+  - Constants: `FORECAST_WINDOW_DAYS = 3`, `PAST_DAYS = 7`, `HEATWAVE_DELTA_C = 5`.
+  - `fetchForecast()`: Open-Meteo `daily=temperature_2m_max&past_days=7&forecast_days=4&timezone=auto`. Array has exactly `PAST_DAYS` leading entries → index 7 is today, 8–10 are the next 3 days. `recentAvgHigh` = avg of past 7; `upcomingMaxHigh` = max of next 3 (today excluded).
+  - Heatwave = `upcomingMaxHigh − recentAvgHigh >= 5°C`. No heatwave → skip user silently (most uneventful days exit here).
+  - `daysUntilWatering(plant)`: reads N2's learned `watering_frequency_days`. null when no frequency/last_watered (those are the watering reminder's job, not the advisor's). At-risk = due within 3 days or overdue.
+  - Heatwave but nothing thirsty → still silent. Only pushes when both intersect.
+  - Body is specific: `"Up to 32°C over the next 3 days (8° above usual). Giorgio and Fern will dry out faster than normal — check on them soon."` `joinNames()` handles 1 / 2 / >2 ("X, Y and N more").
+- `.github/workflows/advisor-tips.yml` (new): daily cron `0 7 * * *` (1h before watering reminders at 08:00 so the two pushes don't collide). Reuses `SUPABASE_SERVICE_ROLE_KEY` secret + `workflow_dispatch` for manual test.
+- TypeScript compiles cleanly (`npx tsc --noEmit`). Edge function is Deno (excluded from tsc).
+- **Verification status (2026-06-20):**
+  - ✅ Migration `00004` run in Supabase.
+  - ✅ App opened with location granted → coords persisted to `profiles`.
+  - ✅ `send-advisor-tips` deployed.
+  - ✅ **Negative path verified live.** Called the function with the anon key (valid gateway JWT; function uses its own injected service_role internally) → `{"sent":0,"message":"No advisor tips today"}`. Critically this is NOT `"No eligible profiles"`, which proves: coords matched the `.not(...is null)` filter, push_token present, Open-Meteo forecast fetched OK, and the trigger then chose silence (no heatwave or no plant due within 3 days). Whole pipeline runs; silent-by-default contract works.
+  - 🔲 **Positive path NOT yet confirmed** (deferred — "move on"). To prove a real push fires: temporarily set `HEATWAVE_DELTA_C = -100`, redeploy, `curl`, confirm notification on device, then revert. Requires a plant due within 3 days / overdue as the target.
+- **Remaining manual step:** `advisor-tips.yml` cron is inert until pushed to GitHub (nothing committed/pushed this session).
+
 #### Edge function fixes (2026-06-18, deployed + verified)
 - Both edge functions (`identify-plant`, `analyze-plant`) pinned the retired `claude-sonnet-4-20250514` snapshot. API returned 404, our wrapper rewrapped as 502. Bumped both to `claude-sonnet-4-6` (current stable Sonnet).
 - Sonnet occasionally wraps structured output in markdown fences (` ```json …``` `) even with "respond ONLY with JSON" in the system prompt. Both functions now strip leading/trailing ` ``` `/` ```json ` before `JSON.parse` — fence-strip regex applied symmetrically in both files. Add this pattern to any new edge function that asks the model for JSON.
@@ -208,7 +230,7 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 - **N1 — Push notifications (context-aware payloads).** ✅ Complete (verified 2026-06-14). Payload body reads from user data ("Calla needs water today"). Next iteration: weather-aware payload bodies once N1.5 lands.
 - **N1.5 — Weather column on `plant_events`.** ✅ Complete (verified 2026-06-14). `weather` JSONB populated by `captureWeather()` on every `logEvent`/`logWatering`. Day 30 moment is now calendar-counting from here.
 - **N2 — AI Learning (per-plant watering frequency).** ✅ Complete (verified 2026-06-18). Median-based proposal, count-based confidence, structural honesty (numbers not prose), no silent change. Personal model now exists.
-- **N3 — Event-triggered Advisor.** Replaces the old "daily" advisor. Surfaces only when forecast + plant state intersect. Silent on uneventful days. Reads from N2's learned `watering_frequency_days`.
+- **N3 — Event-triggered Advisor.** 🟡 Code-complete (2026-06-20), pending end-to-end verify. v1 = heatwave trigger only. New `send-advisor-tips` edge function + `advisor-tips.yml` cron + coords on `profiles`. Surfaces only when forecast + plant state intersect; silent otherwise. Reads N2's learned `watering_frequency_days`. See N3 section above for pending manual steps.
 - **N4 — Plant Journal View.** Monthly Claude-generated narrative + photo gallery + milestone feed. Auto-feeds from N1.5/N2 outputs.
 - **N5 — Slow-drift detector.** Replaces the cut 1–10 health score. Compares latest photo to 4–6 week rolling baseline; direction + evidence, no scalar.
 - **Small wins (parallel):** plant ID correction loop ("this isn't right" affordance); care stats milestone cards.
@@ -220,16 +242,12 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 
 ### Immediate next action
 
-**Start N3 — Event-triggered Advisor.** N2 just shipped, so we now have a per-plant learned `watering_frequency_days` to read from. Scope (proposed, refine at session start):
-1. Trigger conditions (intersection of forecast + plant state). Examples to spec:
-   - Heatwave incoming (next 3 days max temp > rolling avg + 5°C) AND plant due to dry within forecast window.
-   - Sustained drop in humidity vs. recent average AND species marked humidity-sensitive.
-   - Multiple plants intersecting → batch into one notification, not N.
-2. Reuse the `send-watering-reminders` cron / edge function pattern. Probably a new `send-advisor-tips` function on a daily schedule.
-3. Output: a notification with a *specific* observation, never a generic "check your plants". Same standard as N1 — payload reads from user data.
-4. **Silent on uneventful days.** No padding. If nothing intersects, no notification. This is the structural-honesty contract from PRD §7.
+**Verify N3 end-to-end, then close it out.** Code shipped this session (heatwave trigger only). The 5 pending manual steps are listed in the N3 section above — in short: run `00004_profiles_coords.sql`, `supabase functions deploy send-advisor-tips`, open the app once to populate coords, then force-test the function (lower `HEATWAVE_DELTA_C` or use a hot location) and confirm a push arrives only when a plant is due within 3 days. Mark N3 ✅ in this file once a real push lands on device.
 
-Defer until first round of real triggers fires: weather-trend-aware adjustment to the N2 proposal itself (recompute median against same-season historicals only). Needs more `weather` data accumulated first.
+**Then, future N3 expansion (not this session):**
+- Humidity-drop trigger — blocked on structured species humidity-sensitivity (species is free text today). Needs a species-care lookup or a flag captured at add-time.
+- Weather-aware N1 watering-reminder payloads (the "next iteration" noted under N1).
+- Defer until real triggers fire: weather-trend-aware adjustment to the N2 proposal itself (recompute median against same-season historicals). Needs more `weather` data accumulated first.
 
 Phase 3 (Sentry) still queued — wire alongside next native-deps change to avoid an extra rebuild.
 
@@ -320,16 +338,20 @@ plantdiary/
 │   │   │   └── index.ts      # Edge function: Anthropic vision API (plant ID)
 │   │   ├── analyze-plant/
 │   │   │   └── index.ts      # Edge function: Anthropic vision API (health analysis)
-│   │   └── send-watering-reminders/
-│   │       └── index.ts      # Edge function: daily push notifications via Expo Push API
+│   │   ├── send-watering-reminders/
+│   │   │   └── index.ts      # Edge function: daily push notifications via Expo Push API
+│   │   └── send-advisor-tips/
+│   │       └── index.ts      # Edge function (N3): heatwave advisor, silent unless forecast+plant intersect
 │   ├── migrations/
 │   │   ├── 00001_initial_schema.sql
 │   │   ├── 00002_push_tokens.sql  # profiles table + pg_cron schedule
-│   │   └── 00003_plant_events_weather.sql  # adds weather jsonb to plant_events
+│   │   ├── 00003_plant_events_weather.sql  # adds weather jsonb to plant_events
+│   │   └── 00004_profiles_coords.sql  # adds latitude/longitude/coords_updated_at to profiles (N3)
 │   └── storage-setup.sql     # Bucket + RLS for plant-photos
 ├── .github/
 │   └── workflows/
-│       └── watering-reminders.yml  # Daily cron → edge function for push notifications
+│       ├── watering-reminders.yml  # Daily cron (08:00 UTC) → send-watering-reminders
+│       └── advisor-tips.yml        # Daily cron (07:00 UTC) → send-advisor-tips (N3)
 ├── app.json                 # Expo config (incl. android.package, eas.projectId)
 ├── app.config.js            # Wraps app.json; allows GOOGLE_SERVICES_JSON env override for EAS
 ├── eas.json                 # EAS build profiles: development (APK + dev client), preview, production
