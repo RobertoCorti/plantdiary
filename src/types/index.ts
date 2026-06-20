@@ -60,3 +60,21 @@ export type AIPhotoAnalysisResult = {
   observations: string;
   recommended_action: string | null;
 };
+
+// N4 — Plant Journal. Auto-detected from existing plant_events; no AI, no DB.
+export type Milestone = {
+  id: string; // stable key for list rendering
+  icon: string; // emoji
+  title: string;
+  detail: string | null;
+  date: string; // ISO timestamp of when the milestone occurred
+};
+
+export type JournalStats = {
+  daysWithPlant: number;
+  waterings: number;
+  fertilizings: number;
+  repottings: number;
+  photos: number;
+  scaresSurvived: number;
+};

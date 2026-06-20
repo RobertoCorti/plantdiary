@@ -437,6 +437,14 @@ export default function PlantProfileScreen({
         <Text style={styles.backButtonText}>← Back</Text>
       </Pressable>
 
+      {/* Journal entry point */}
+      <Pressable
+        style={styles.journalButton}
+        onPress={() => navigation.navigate("PlantJournal", { plantId })}
+      >
+        <Text style={styles.journalButtonText}>📖 Journal</Text>
+      </Pressable>
+
       <FlatList
         data={events}
         renderItem={renderEvent}
@@ -759,6 +767,21 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   backButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2d5016",
+  },
+  journalButton: {
+    position: "absolute",
+    top: 54,
+    right: 16,
+    zIndex: 10,
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  journalButtonText: {
     fontSize: 15,
     fontWeight: "600",
     color: "#2d5016",

@@ -14,11 +14,13 @@ import AuthScreen from "./src/screens/AuthScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import AddPlantScreen from "./src/screens/AddPlantScreen";
 import PlantProfileScreen from "./src/screens/PlantProfileScreen";
+import PlantJournalScreen from "./src/screens/PlantJournalScreen";
 
 export type RootStackParamList = {
   Home: undefined;
   AddPlant: undefined;
   PlantProfile: { plantId: string };
+  PlantJournal: { plantId: string };
   Auth: undefined;
 };
 
@@ -86,6 +88,15 @@ export default function App() {
             <Stack.Screen name="PlantProfile">
               {(props: NativeStackScreenProps<RootStackParamList, "PlantProfile">) => (
                 <PlantProfileScreen
+                  session={session}
+                  plantId={props.route.params.plantId}
+                  navigation={props.navigation}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="PlantJournal">
+              {(props: NativeStackScreenProps<RootStackParamList, "PlantJournal">) => (
+                <PlantJournalScreen
                   session={session}
                   plantId={props.route.params.plantId}
                   navigation={props.navigation}

@@ -1,6 +1,6 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: N3 — Event-triggered Advisor (code-complete, pending end-to-end verify)
+## Current milestone: N4 — Plant Journal View (no-AI half built; narrative half next)
 ## Last session: 2026-06-20
 
 ### What's done
@@ -163,6 +163,19 @@
   - 🔲 **Positive path NOT yet confirmed** (deferred — "move on"). To prove a real push fires: temporarily set `HEATWAVE_DELTA_C = -100`, redeploy, `curl`, confirm notification on device, then revert. Requires a plant due within 3 days / overdue as the target.
 - **Remaining manual step:** `advisor-tips.yml` cron is inert until pushed to GitHub (nothing committed/pushed this session).
 
+#### N4 — Plant Journal View, no-AI half (BUILT 2026-06-20 — compiles, not yet run on device)
+- **Scope decision:** ship the no-AI half first (milestone feed + photo gallery — pure client computation from existing `plant_events`, no migration, no edge function, no API cost, testable in Expo Go). Claude monthly narrative is the next session.
+- **Narrative persistence decision (for the follow-up, not built yet):** dedicated `journal_entries` table keyed by (plant_id, year-month), generated once per month and cached. Respects AGENTS "store AI responses", avoids re-billing per view, keeps the event timeline clean. (Rejected: storing as a `plant_event` — pollutes the timeline; regenerate-on-demand — re-bills + drifts.)
+- `src/types/index.ts`: added `Milestone` and `JournalStats` types.
+- `src/lib/journal.ts` (new, pure functions — no I/O):
+  - `computeJournalStats(plant, events)`: days-with-plant (from `created_at`), counts of waterings/fertilizings/repottings/photos, and `scaresSurvived` (a `concern` photo-analysis later followed by a `healthy` one).
+  - `computeMilestones(plant, events)`: anniversaries (7d/1mo/100d/6mo/1yr reached so far + yearly beyond), watering-count marks (10/25/50/100/200/365, dated at the crossing event), first feeding / first repot / first photo, each `frequency_updated` event (detail = the N2 "X → Y days" notes), and "Survived a scare" (concern→healthy recovery). Returns newest-first.
+- `src/screens/PlantJournalScreen.tsx` (new): top bar + plant name, stats summary card ("N days with X" + counters), 3-column photo gallery (events with `photo_url`, newest first), milestone feed. Fetches plant + events via `fetchPlantEvents` on focus. Session prop unused for now (prefixed `_session`).
+- `App.tsx`: added `PlantJournal: { plantId }` route + screen.
+- `PlantProfileScreen.tsx`: "📖 Journal" button top-right (mirrors the back button) → navigates to PlantJournal. Bottom action bar (Photo Check-In / Log Event) left untouched to avoid crowding.
+- TypeScript compiles cleanly (`npx tsc --noEmit`).
+- **Not yet done:** run on device/Expo Go to eyeball the screen (no push needed → Expo Go is fine). Narrative half (edge function + `journal_entries` migration) is the next session.
+
 #### Edge function fixes (2026-06-18, deployed + verified)
 - Both edge functions (`identify-plant`, `analyze-plant`) pinned the retired `claude-sonnet-4-20250514` snapshot. API returned 404, our wrapper rewrapped as 502. Bumped both to `claude-sonnet-4-6` (current stable Sonnet).
 - Sonnet occasionally wraps structured output in markdown fences (` ```json …``` `) even with "respond ONLY with JSON" in the system prompt. Both functions now strip leading/trailing ` ``` `/` ```json ` before `JSON.parse` — fence-strip regex applied symmetrically in both files. Add this pattern to any new edge function that asks the model for JSON.
@@ -231,7 +244,7 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 - **N1.5 — Weather column on `plant_events`.** ✅ Complete (verified 2026-06-14). `weather` JSONB populated by `captureWeather()` on every `logEvent`/`logWatering`. Day 30 moment is now calendar-counting from here.
 - **N2 — AI Learning (per-plant watering frequency).** ✅ Complete (verified 2026-06-18). Median-based proposal, count-based confidence, structural honesty (numbers not prose), no silent change. Personal model now exists.
 - **N3 — Event-triggered Advisor.** 🟡 Code-complete (2026-06-20), pending end-to-end verify. v1 = heatwave trigger only. New `send-advisor-tips` edge function + `advisor-tips.yml` cron + coords on `profiles`. Surfaces only when forecast + plant state intersect; silent otherwise. Reads N2's learned `watering_frequency_days`. See N3 section above for pending manual steps.
-- **N4 — Plant Journal View.** Monthly Claude-generated narrative + photo gallery + milestone feed. Auto-feeds from N1.5/N2 outputs.
+- **N4 — Plant Journal View.** 🟡 No-AI half built (2026-06-20): milestone feed + photo gallery + stats, all client-computed from `plant_events` (`src/lib/journal.ts` + `PlantJournalScreen`). Pending: run on device, then build the monthly Claude narrative (dedicated `journal_entries` table, see N4 section above). Auto-feeds from N1.5/N2 outputs.
 - **N5 — Slow-drift detector.** Replaces the cut 1–10 health score. Compares latest photo to 4–6 week rolling baseline; direction + evidence, no scalar.
 - **Small wins (parallel):** plant ID correction loop ("this isn't right" affordance); care stats milestone cards.
 - **Cut:** 1–10 health score (fake precision, violates honest-AI). Daily-cadence advisor (forces padding). **Shared Plants / multi-user ownership (cut 2026-06-18 — keeping app single-user).**
@@ -242,9 +255,15 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 
 ### Immediate next action
 
-**Verify N3 end-to-end, then close it out.** Code shipped this session (heatwave trigger only). The 5 pending manual steps are listed in the N3 section above — in short: run `00004_profiles_coords.sql`, `supabase functions deploy send-advisor-tips`, open the app once to populate coords, then force-test the function (lower `HEATWAVE_DELTA_C` or use a hot location) and confirm a push arrives only when a plant is due within 3 days. Mark N3 ✅ in this file once a real push lands on device.
+**Build the N4 narrative half (monthly Claude-generated journal entry).** The no-AI half (milestones + gallery + stats) shipped this session. Next:
+1. Run the journal on device/Expo Go first to eyeball the no-AI half (no push needed).
+2. Migration: `journal_entries` table — `(id, plant_id, user_id, period text /* 'YYYY-MM' */, narrative text, created_at)`, unique on (plant_id, period), RLS "users own their journal entries". Manual run.
+3. New edge function `generate-journal` (text-only Claude, mirror `analyze-plant`'s fetch + fence-strip pattern, model `claude-sonnet-4-6`): takes plant + that month's events (incl. `weather` JSONB + any `ai_analysis`), returns a calm 1-paragraph narrative. Store into `journal_entries`.
+4. Journal screen: per-month section; if a `journal_entries` row exists show it, else a "Generate this month's entry" affordance (cache after first generate; don't re-bill on re-open).
 
-**Then, future N3 expansion (not this session):**
+**N3 still pending (deferred this session):** positive-push test — set `HEATWAVE_DELTA_C = -100`, redeploy, curl, confirm a real notification, then revert. Negative path already verified live (see N3 section).
+
+**Then, future N3 expansion:**
 - Humidity-drop trigger — blocked on structured species humidity-sensitivity (species is free text today). Needs a species-care lookup or a flag captured at add-time.
 - Weather-aware N1 watering-reminder payloads (the "next iteration" noted under N1).
 - Defer until real triggers fire: weather-trend-aware adjustment to the N2 proposal itself (recompute median against same-season historicals). Needs more `weather` data accumulated first.
@@ -324,12 +343,14 @@ plantdiary/
 │   │   ├── watering.ts      # getWateringStatus(), daysSinceWatered()
 │   │   ├── weather.ts       # fetchWeather() — Open-Meteo API
 │   │   ├── events.ts        # logWatering()/logEvent()/acceptFrequencyProposal() — silently capture weather; fetchPlantEvents()
-│   │   └── learning.ts      # proposeFrequency() — median-interval N2 proposal, count-based confidence
+│   │   ├── learning.ts      # proposeFrequency() — median-interval N2 proposal, count-based confidence
+│   │   └── journal.ts       # computeMilestones()/computeJournalStats() — N4 milestone feed + stats (pure)
 │   ├── screens/
 │   │   ├── AuthScreen.tsx    # Sign up / log in
 │   │   ├── HomeScreen.tsx    # Today Screen: weather + watering status + tappable plant cards
 │   │   ├── AddPlantScreen.tsx # Photo → AI ID → save plant
-│   │   └── PlantProfileScreen.tsx # Plant details, care stats, event timeline, log event, photo check-in
+│   │   ├── PlantProfileScreen.tsx # Plant details, care stats, event timeline, log event, photo check-in
+│   │   └── PlantJournalScreen.tsx # N4: stats summary + photo gallery + milestone feed (no-AI half)
 │   └── types/
 │       └── index.ts          # Plant, PlantEvent, WateringStatus, WeatherData, AIIdentificationResult, AIPhotoAnalysisResult
 ├── supabase/
