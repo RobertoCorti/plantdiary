@@ -161,9 +161,9 @@
   - ✅ `send-advisor-tips` deployed.
   - ✅ **Negative path verified live.** Called the function with the anon key (valid gateway JWT; function uses its own injected service_role internally) → `{"sent":0,"message":"No advisor tips today"}`. Critically this is NOT `"No eligible profiles"`, which proves: coords matched the `.not(...is null)` filter, push_token present, Open-Meteo forecast fetched OK, and the trigger then chose silence (no heatwave or no plant due within 3 days). Whole pipeline runs; silent-by-default contract works.
   - 🔲 **Positive path NOT yet confirmed** (deferred — "move on"). To prove a real push fires: temporarily set `HEATWAVE_DELTA_C = -100`, redeploy, `curl`, confirm notification on device, then revert. Requires a plant due within 3 days / overdue as the target.
-- **Remaining manual step:** `advisor-tips.yml` cron is inert until pushed to GitHub (nothing committed/pushed this session).
+  - ✅ Committed `626a948` + pushed to `origin/main`, so `advisor-tips.yml` cron is now armed (daily 07:00 UTC + manual `workflow_dispatch`).
 
-#### N4 — Plant Journal View, no-AI half (BUILT 2026-06-20 — compiles, not yet run on device)
+#### N4 — Plant Journal View, no-AI half (DONE 2026-06-20 — verified on device, committed `0e392e2` + pushed)
 - **Scope decision:** ship the no-AI half first (milestone feed + photo gallery — pure client computation from existing `plant_events`, no migration, no edge function, no API cost, testable in Expo Go). Claude monthly narrative is the next session.
 - **Narrative persistence decision (for the follow-up, not built yet):** dedicated `journal_entries` table keyed by (plant_id, year-month), generated once per month and cached. Respects AGENTS "store AI responses", avoids re-billing per view, keeps the event timeline clean. (Rejected: storing as a `plant_event` — pollutes the timeline; regenerate-on-demand — re-bills + drifts.)
 - `src/types/index.ts`: added `Milestone` and `JournalStats` types.
@@ -174,7 +174,7 @@
 - `App.tsx`: added `PlantJournal: { plantId }` route + screen.
 - `PlantProfileScreen.tsx`: "📖 Journal" button top-right (mirrors the back button) → navigates to PlantJournal. Bottom action bar (Photo Check-In / Log Event) left untouched to avoid crowding.
 - TypeScript compiles cleanly (`npx tsc --noEmit`).
-- **Not yet done:** run on device/Expo Go to eyeball the screen (no push needed → Expo Go is fine). Narrative half (edge function + `journal_entries` migration) is the next session.
+- Verified on device in Expo Go (no push needed). Narrative half (edge function + `journal_entries` migration) is the next session.
 
 #### Edge function fixes (2026-06-18, deployed + verified)
 - Both edge functions (`identify-plant`, `analyze-plant`) pinned the retired `claude-sonnet-4-20250514` snapshot. API returned 404, our wrapper rewrapped as 502. Bumped both to `claude-sonnet-4-6` (current stable Sonnet).
