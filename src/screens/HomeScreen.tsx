@@ -30,6 +30,7 @@ import {
 import { StatusBadge } from "../components/StatusBadge";
 import { EyebrowLabel } from "../components/EyebrowLabel";
 import { BreathingMark } from "../components/BreathingMark";
+import { WaterTap } from "../components/WaterTap";
 import type { Plant, WateringStatus, WeatherData } from "../types";
 
 type Props = {
@@ -52,7 +53,12 @@ export default function HomeScreen({ session, navigation }: Props) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherError, setWeatherError] = useState<string | null>(null);
   const [wateringIds, setWateringIds] = useState<Set<string>>(new Set());
+  const [waterTapSignals, setWaterTapSignals] = useState<Record<string, number>>({});
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  function bumpWaterTap(plantId: string) {
+    setWaterTapSignals((s) => ({ ...s, [plantId]: (s[plantId] ?? 0) + 1 }));
+  }
   const isFocused = useIsFocused();
 
   const fetchPlants = useCallback(async () => {
@@ -152,6 +158,7 @@ export default function HomeScreen({ session, navigation }: Props) {
     const targets = grouped.water_today;
     if (targets.length === 0) return;
     const ids = new Set(targets.map((p) => p.id));
+    for (const id of ids) bumpWaterTap(id);
     setWateringIds((prev) => new Set([...prev, ...ids]));
     const now = new Date().toISOString();
     setPlants((prev) =>
@@ -237,47 +244,53 @@ export default function HomeScreen({ session, navigation }: Props) {
     const isWatering = wateringIds.has(plant.id);
 
     return (
-      <Pressable
-        key={plant.id}
-        style={[styles.attentionCard, { borderLeftColor: tone.dot }]}
-        onPress={() => navigation.navigate("PlantProfile", { plantId: plant.id })}
-      >
-        {plant.photo_url ? (
-          <Image source={{ uri: plant.photo_url }} style={styles.attentionImage} />
-        ) : (
-          <View style={[styles.attentionImage, styles.imagePlaceholder]}>
-            <Text style={styles.imagePlaceholderText}>🌱</Text>
-          </View>
-        )}
-        <View style={styles.attentionInfo}>
-          <View style={styles.attentionTopRow}>
-            <Text style={styles.cardName} numberOfLines={1}>
-              {plant.name}
-            </Text>
-            <StatusBadge status={status} />
-          </View>
-          {plant.species && (
-            <Text style={styles.cardSpecies} numberOfLines={1}>
-              {plant.species}
-            </Text>
-          )}
-          <Text style={styles.cardWatered}>
-            {days !== null ? `Last watered ${days}d ago` : "Never watered"}
-          </Text>
-        </View>
+      <View key={plant.id} style={styles.attentionCardWrap}>
         <Pressable
-          style={[styles.waterButton, isWatering && styles.waterButtonDisabled]}
-          onPress={() => !isWatering && handleWater(plant)}
-          disabled={isWatering}
-          hitSlop={8}
+          style={[styles.attentionCard, { borderLeftColor: tone.dot }]}
+          onPress={() => navigation.navigate("PlantProfile", { plantId: plant.id })}
         >
-          {isWatering ? (
-            <ActivityIndicator size="small" color="#fff" />
+          {plant.photo_url ? (
+            <Image source={{ uri: plant.photo_url }} style={styles.attentionImage} />
           ) : (
-            <Text style={styles.waterButtonText}>Water</Text>
+            <View style={[styles.attentionImage, styles.imagePlaceholder]}>
+              <Text style={styles.imagePlaceholderText}>🌱</Text>
+            </View>
           )}
+          <View style={styles.attentionInfo}>
+            <View style={styles.attentionTopRow}>
+              <Text style={styles.cardName} numberOfLines={1}>
+                {plant.name}
+              </Text>
+              <StatusBadge status={status} />
+            </View>
+            {plant.species && (
+              <Text style={styles.cardSpecies} numberOfLines={1}>
+                {plant.species}
+              </Text>
+            )}
+            <Text style={styles.cardWatered}>
+              {days !== null ? `Last watered ${days}d ago` : "Never watered"}
+            </Text>
+          </View>
+          <Pressable
+            style={[styles.waterButton, isWatering && styles.waterButtonDisabled]}
+            onPress={() => {
+              if (isWatering) return;
+              bumpWaterTap(plant.id);
+              handleWater(plant);
+            }}
+            disabled={isWatering}
+            hitSlop={8}
+          >
+            {isWatering ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.waterButtonText}>Water</Text>
+            )}
+          </Pressable>
         </Pressable>
-      </Pressable>
+        <WaterTap signal={waterTapSignals[plant.id] ?? 0} />
+      </View>
     );
   }
 
@@ -518,6 +531,9 @@ const styles = StyleSheet.create({
     color: colors.forest,
   },
 
+  attentionCardWrap: {
+    position: "relative",
+  },
   attentionCard: {
     backgroundColor: colors.surface,
     borderWidth: 1,
