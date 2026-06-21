@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { supabase } from "../lib/supabase";
+import { colors, fonts, radius, spacing, typography } from "../lib/theme";
 
 export default function AuthScreen() {
   const [email, setEmail] = useState("");
@@ -35,9 +36,6 @@ export default function AuthScreen() {
       Alert.alert("Error", error.message);
       return;
     }
-
-    // Email confirmation is disabled — signup triggers auth state change
-    // automatically, navigating to HomeScreen.
   }
 
   return (
@@ -46,7 +44,7 @@ export default function AuthScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.inner}>
-        <Text style={styles.title}>PlantDiary 🌱</Text>
+        <Text style={styles.title}>PlantDiary</Text>
         <Text style={styles.subtitle}>
           {isSignUp ? "Create an account" : "Welcome back"}
         </Text>
@@ -54,7 +52,7 @@ export default function AuthScreen() {
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.muted}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -64,7 +62,7 @@ export default function AuthScreen() {
         <TextInput
           style={styles.input}
           placeholder="Password"
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.muted}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -76,7 +74,7 @@ export default function AuthScreen() {
           disabled={loading}
         >
           <Text style={styles.buttonText}>
-            {loading ? "Loading..." : isSignUp ? "Sign Up" : "Log In"}
+            {loading ? "Loading…" : isSignUp ? "Sign up" : "Log in"}
           </Text>
         </Pressable>
 
@@ -95,56 +93,59 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8faf5",
+    backgroundColor: colors.paper,
   },
   inner: {
     flex: 1,
     justifyContent: "center",
-    paddingHorizontal: 32,
+    paddingHorizontal: spacing.xl,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#2d5016",
+    ...typography.display,
+    color: colors.ink,
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   subtitle: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 16,
-    color: "#666",
+    lineHeight: 22,
+    color: colors.bark,
     textAlign: "center",
-    marginBottom: 32,
+    marginBottom: spacing.xl,
   },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.base,
     paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 12,
-    color: "#333",
+    fontFamily: fonts.hankenRegular,
+    fontSize: 15,
+    color: colors.ink,
+    marginBottom: spacing.md,
   },
   button: {
-    backgroundColor: "#2d5016",
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: colors.forest,
+    borderRadius: radius.md,
+    paddingVertical: 14,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
     color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 15,
   },
   switchText: {
-    color: "#2d5016",
-    textAlign: "center",
-    marginTop: 20,
+    fontFamily: fonts.hankenRegular,
     fontSize: 14,
+    color: colors.fern,
+    textAlign: "center",
+    marginTop: spacing.lg,
   },
 });
