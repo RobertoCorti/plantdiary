@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import {
   createNativeStackNavigator,
@@ -7,14 +7,37 @@ import {
 import { Session } from "@supabase/supabase-js";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import * as SplashScreen from "expo-splash-screen";
+import {
+  useFonts,
+  Spectral_400Regular,
+  Spectral_500Medium,
+  Spectral_600SemiBold,
+  Spectral_400Regular_Italic,
+} from "@expo-google-fonts/spectral";
+import {
+  HankenGrotesk_400Regular,
+  HankenGrotesk_500Medium,
+  HankenGrotesk_600SemiBold,
+  HankenGrotesk_700Bold,
+} from "@expo-google-fonts/hanken-grotesk";
+import {
+  IBMPlexMono_400Regular,
+  IBMPlexMono_500Medium,
+} from "@expo-google-fonts/ibm-plex-mono";
 import { supabase } from "./src/lib/supabase";
 import { registerForPushNotifications } from "./src/lib/notifications";
 import { log } from "./src/lib/logger";
+import { colors, fonts as fontFamilies } from "./src/lib/theme";
 import AuthScreen from "./src/screens/AuthScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import AddPlantScreen from "./src/screens/AddPlantScreen";
 import PlantProfileScreen from "./src/screens/PlantProfileScreen";
 import PlantJournalScreen from "./src/screens/PlantJournalScreen";
+
+SplashScreen.preventAutoHideAsync().catch(() => {
+  /* already prevented */
+});
 
 export type RootStackParamList = {
   Home: undefined;
@@ -29,6 +52,30 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fontsLoaded, fontError] = useFonts({
+    Spectral_400Regular,
+    Spectral_500Medium,
+    Spectral_600SemiBold,
+    Spectral_400Regular_Italic,
+    HankenGrotesk_400Regular,
+    HankenGrotesk_500Medium,
+    HankenGrotesk_600SemiBold,
+    HankenGrotesk_700Bold,
+    IBMPlexMono_400Regular,
+    IBMPlexMono_500Medium,
+  });
+
+  useEffect(() => {
+    if (fontError) log.error("app", "Font load failed", fontError.message);
+  }, [fontError]);
+
+  const ready = !loading && (fontsLoaded || !!fontError);
+
+  const onLayoutRootView = useCallback(async () => {
+    if (ready) {
+      await SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [ready]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -65,17 +112,17 @@ export default function App() {
     });
   }, [session]);
 
-  if (loading) {
+  if (!ready) {
     return (
-      <View style={styles.splash}>
+      <View style={styles.splash} onLayout={onLayoutRootView}>
         <Text style={styles.splashTitle}>PlantDiary</Text>
-        <ActivityIndicator size="large" color="#2d5016" style={{ marginTop: 16 }} />
+        <ActivityIndicator size="large" color={colors.forest} style={{ marginTop: 16 }} />
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer onReady={onLayoutRootView}>
       <StatusBar style="dark" />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session ? (
@@ -123,13 +170,13 @@ export default function App() {
 const styles = StyleSheet.create({
   splash: {
     flex: 1,
-    backgroundColor: "#f8faf5",
+    backgroundColor: colors.paper,
     justifyContent: "center",
     alignItems: "center",
   },
   splashTitle: {
+    fontFamily: fontFamilies.spectralMedium,
     fontSize: 36,
-    fontWeight: "700",
-    color: "#2d5016",
+    color: colors.forest,
   },
 });
