@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Image,
   Modal,
   Pressable,
@@ -24,12 +23,22 @@ import {
   logEvent,
 } from "../lib/events";
 import { proposeFrequency } from "../lib/learning";
+import {
+  colors,
+  fonts,
+  radius,
+  spacing,
+  typography,
+} from "../lib/theme";
+import { StatusBadge } from "../components/StatusBadge";
+import { ConfidenceBar } from "../components/ConfidenceBar";
+import { EventIcon } from "../components/EventIcon";
+import { EyebrowLabel } from "../components/EyebrowLabel";
 import type {
   AIPhotoAnalysisResult,
   FrequencyProposal,
   Plant,
   PlantEvent,
-  WateringStatus,
 } from "../types";
 import type { RootStackParamList } from "../../App";
 
@@ -39,53 +48,63 @@ type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, "PlantProfile">;
 };
 
-const STATUS_CONFIG: Record<
-  WateringStatus,
-  { label: string; bg: string; text: string }
-> = {
-  water_today: { label: "Water today", bg: "#fdecea", text: "#c0392b" },
-  check: { label: "Check", bg: "#fff8e1", text: "#f39c12" },
-  ok: { label: "OK", bg: "#e8f5e9", text: "#2d5016" },
-};
+type AnalysisStatus = AIPhotoAnalysisResult["status"];
 
-const ANALYSIS_STATUS_CONFIG: Record<
-  AIPhotoAnalysisResult["status"],
-  { label: string; bg: string; text: string }
+const ANALYSIS_TONE: Record<
+  AnalysisStatus,
+  { label: string; bg: string; text: string; dot: string }
 > = {
-  healthy: { label: "Healthy", bg: "#e8f5e9", text: "#2d5016" },
-  monitor: { label: "Monitor", bg: "#fff8e1", text: "#f39c12" },
-  concern: { label: "Concern", bg: "#fdecea", text: "#c0392b" },
+  healthy: {
+    label: "Healthy",
+    bg: colors.thrivingBg,
+    text: colors.thrivingText,
+    dot: colors.thrivingDot,
+  },
+  monitor: {
+    label: "Monitor",
+    bg: colors.checkBg,
+    text: colors.checkText,
+    dot: colors.checkDot,
+  },
+  concern: {
+    label: "Concern",
+    bg: colors.waterTodayBg,
+    text: colors.waterTodayText,
+    dot: colors.waterTodayDot,
+  },
 };
 
 const EVENT_TYPES = ["watered", "fertilized", "repotted", "observation"] as const;
 type LoggableEventType = (typeof EVENT_TYPES)[number];
-
-const EVENT_ICONS: Record<PlantEvent["event_type"], string> = {
-  watered: "💧",
-  fertilized: "🧪",
-  repotted: "🪴",
-  observation: "👁",
-  photo: "📷",
-  frequency_updated: "📊",
-};
 
 const EVENT_LABELS: Record<PlantEvent["event_type"], string> = {
   watered: "Watered",
   fertilized: "Fertilized",
   repotted: "Repotted",
   observation: "Observation",
-  photo: "Photo Check-In",
+  photo: "Photo check-in",
   frequency_updated: "Schedule updated",
 };
 
-const CONFIDENCE_CONFIG: Record<
+// proposeFrequency() doesn't yet return variance, so error-days come from the
+// confidence tier rather than a computed IQR. Values match DESIGN.md §5.2.
+const CONFIDENCE_TIER: Record<
   FrequencyProposal["confidence"],
-  { label: string; bg: string; text: string }
+  { fillPercent: number; errorDays: number }
 > = {
-  low: { label: "low", bg: "#fff8e1", text: "#f39c12" },
-  medium: { label: "medium", bg: "#e3f2fd", text: "#1976d2" },
-  high: { label: "high", bg: "#e8f5e9", text: "#2d5016" },
+  low: { fillPercent: 28, errorDays: 3.1 },
+  medium: { fillPercent: 62, errorDays: 1.4 },
+  high: { fillPercent: 92, errorDays: 0.6 },
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const RHYTHM_DAYS = 30;
+
+function startOfDay(d: Date | number | string): number {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
 
 function relativeTime(dateStr: string): string {
   const now = Date.now();
@@ -102,15 +121,58 @@ function relativeTime(dateStr: string): string {
   return `${months}mo ago`;
 }
 
+function shortDateLabel(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+type WeekGroup = { key: number; label: string; events: PlantEvent[] };
+
+function groupByWeek(events: PlantEvent[]): WeekGroup[] {
+  const today = startOfDay(Date.now());
+  const buckets = new Map<number, PlantEvent[]>();
+  for (const e of events) {
+    const daysAgo = Math.floor((today - startOfDay(e.created_at)) / DAY_MS);
+    const week = Math.max(0, Math.floor(daysAgo / 7));
+    const arr = buckets.get(week);
+    if (arr) arr.push(e);
+    else buckets.set(week, [e]);
+  }
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([key, list]) => ({
+      key,
+      label: key === 0 ? "This week" : key === 1 ? "Last week" : `${key} weeks ago`,
+      events: list,
+    }));
+}
+
 function parseAnalysis(raw: string | null): AIPhotoAnalysisResult | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
     if (parsed.status && parsed.observations) return parsed;
   } catch {
-    // not JSON, ignore
+    // not JSON
   }
   return null;
+}
+
+// One color per day for the 30-day rhythm strip. Highest-priority event wins
+// when multiple events fall on the same day.
+function rhythmDot(daysAgo: number, events: PlantEvent[]): string {
+  const dayStart = startOfDay(Date.now() - daysAgo * DAY_MS);
+  const dayEnd = dayStart + DAY_MS;
+  const hits = events.filter((e) => {
+    const t = new Date(e.created_at).getTime();
+    return t >= dayStart && t < dayEnd;
+  });
+  if (hits.some((e) => e.event_type === "watered")) return colors.forest;
+  if (hits.some((e) => e.event_type === "photo")) return colors.rain;
+  if (hits.length > 0) return colors.sage;
+  return colors.line;
 }
 
 export default function PlantProfileScreen({
@@ -163,7 +225,7 @@ export default function PlantProfileScreen({
 
   const careStats = useMemo(() => {
     const wateredEvents = events.filter((e) => e.event_type === "watered");
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const thirtyDaysAgo = Date.now() - 30 * DAY_MS;
     const recentCount = events.filter(
       (e) => new Date(e.created_at).getTime() > thirtyDaysAgo
     ).length;
@@ -179,13 +241,65 @@ export default function PlantProfileScreen({
         const diff =
           new Date(sorted[i].created_at).getTime() -
           new Date(sorted[i - 1].created_at).getTime();
-        totalDays += diff / (1000 * 60 * 60 * 24);
+        totalDays += diff / DAY_MS;
       }
       avgInterval = Math.round(totalDays / (sorted.length - 1));
     }
 
-    return { avgInterval, recentCount };
-  }, [events]);
+    const daysWithPlant = plant
+      ? Math.max(
+          1,
+          Math.floor((Date.now() - new Date(plant.created_at).getTime()) / DAY_MS)
+        )
+      : 0;
+
+    return { avgInterval, recentCount, daysWithPlant };
+  }, [events, plant]);
+
+  // events arrive newest-first. The "Now" is the most recent photo event;
+  // the "Day 1" is the oldest photo event. We need at least two to show the
+  // pair — otherwise we either show a single photo or fall back to the plant
+  // profile photo.
+  const photoStrip = useMemo(() => {
+    const photos = events
+      .filter((e) => e.event_type === "photo" && e.photo_url)
+      .sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+    if (photos.length >= 2) {
+      const first = photos[0];
+      const last = photos[photos.length - 1];
+      const span = Math.max(
+        1,
+        Math.floor(
+          (new Date(last.created_at).getTime() -
+            new Date(first.created_at).getTime()) /
+            DAY_MS
+        )
+      );
+      return {
+        kind: "pair" as const,
+        firstUrl: first.photo_url!,
+        firstLabel: shortDateLabel(first.created_at),
+        lastUrl: last.photo_url!,
+        lastLabel: `Day ${span + 1}`,
+      };
+    }
+    if (photos.length === 1) {
+      return {
+        kind: "single" as const,
+        url: photos[0].photo_url!,
+        label: shortDateLabel(photos[0].created_at),
+      };
+    }
+    if (plant?.photo_url) {
+      return { kind: "single" as const, url: plant.photo_url, label: "Profile" };
+    }
+    return null;
+  }, [events, plant]);
+
+  const weekGroups = useMemo(() => groupByWeek(events), [events]);
 
   async function handleLogEvent() {
     setSubmitting(true);
@@ -247,7 +361,6 @@ export default function PlantProfileScreen({
     setAnalyzing(true);
 
     try {
-      // Upload photo to Supabase Storage
       const fileExt = uri.split(".").pop() ?? "jpg";
       const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
       const contentType = `image/${fileExt === "jpg" ? "jpeg" : fileExt}`;
@@ -266,21 +379,12 @@ export default function PlantProfileScreen({
           "POST",
           `${supabaseUrl}/storage/v1/object/plant-photos/${fileName}`
         );
-        xhr.setRequestHeader(
-          "Authorization",
-          `Bearer ${session.access_token}`
-        );
-        xhr.setRequestHeader(
-          "apikey",
-          process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
-        );
+        xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
+        xhr.setRequestHeader("apikey", process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!);
         xhr.setRequestHeader("x-upsert", "false");
         xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            reject(new Error(`Upload failed: ${xhr.responseText}`));
-          }
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Upload failed: ${xhr.responseText}`));
         };
         xhr.onerror = () => reject(new Error("Upload network error"));
         xhr.send(formData);
@@ -290,7 +394,6 @@ export default function PlantProfileScreen({
         data: { publicUrl },
       } = supabase.storage.from("plant-photos").getPublicUrl(fileName);
 
-      // Build previous events context (last 5)
       const recentEvents = events.slice(0, 5).map((e) => ({
         event_type: e.event_type,
         created_at: e.created_at,
@@ -298,25 +401,18 @@ export default function PlantProfileScreen({
         ai_analysis: e.ai_analysis,
       }));
 
-      // Call analyze-plant edge function
-      const fnResp = await fetch(
-        `${supabaseUrl}/functions/v1/analyze-plant`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            photo_url: publicUrl,
-            plant: {
-              species: plant?.species,
-              name: plant?.name,
-            },
-            previous_events: recentEvents,
-          }),
-        }
-      );
+      const fnResp = await fetch(`${supabaseUrl}/functions/v1/analyze-plant`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          photo_url: publicUrl,
+          plant: { species: plant?.species, name: plant?.name },
+          previous_events: recentEvents,
+        }),
+      });
 
       if (!fnResp.ok) {
         const errText = await fnResp.text();
@@ -327,7 +423,6 @@ export default function PlantProfileScreen({
       setAnalysisResult(analysis);
       setShowAnalysisModal(true);
 
-      // Save event with photo and analysis
       await logEvent(
         supabase,
         plantId,
@@ -352,7 +447,7 @@ export default function PlantProfileScreen({
   if (loading || !plant) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2d5016" />
+        <ActivityIndicator size="large" color={colors.forest} />
       </View>
     );
   }
@@ -360,239 +455,208 @@ export default function PlantProfileScreen({
   if (analyzing) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2d5016" />
-        <Text style={styles.analyzingText}>Analyzing your plant...</Text>
+        <ActivityIndicator size="large" color={colors.forest} />
+        <Text style={styles.analyzingText}>Analyzing your plant…</Text>
       </View>
     );
   }
 
   const status = getWateringStatus(plant);
-  const config = STATUS_CONFIG[status];
-
-  function renderEvent({ item }: { item: PlantEvent }) {
-    const analysis = parseAnalysis(item.ai_analysis);
-
-    return (
-      <View style={styles.eventRow}>
-        <Text style={styles.eventIcon}>
-          {EVENT_ICONS[item.event_type] ?? "📝"}
-        </Text>
-        <View style={styles.eventContent}>
-          <View style={styles.eventHeader}>
-            <Text style={styles.eventType}>
-              {EVENT_LABELS[item.event_type] ?? item.event_type}
-            </Text>
-            <Text style={styles.eventTime}>
-              {relativeTime(item.created_at)}
-            </Text>
-          </View>
-          {item.notes ? (
-            <Text style={styles.eventNotes} numberOfLines={2}>
-              {item.notes}
-            </Text>
-          ) : null}
-          {analysis ? (
-            <Pressable
-              style={styles.analysisInline}
-              onPress={() => {
-                setAnalysisResult(analysis);
-                setShowAnalysisModal(true);
-              }}
-            >
-              <View
-                style={[
-                  styles.analysisBadgeSmall,
-                  { backgroundColor: ANALYSIS_STATUS_CONFIG[analysis.status].bg },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.analysisBadgeText,
-                    { color: ANALYSIS_STATUS_CONFIG[analysis.status].text },
-                  ]}
-                >
-                  {ANALYSIS_STATUS_CONFIG[analysis.status].label}
-                </Text>
-              </View>
-              <Text style={styles.analysisObservations} numberOfLines={3}>
-                {analysis.observations}
-              </Text>
-              {analysis.recommended_action ? (
-                <Text style={styles.analysisAction} numberOfLines={2}>
-                  {analysis.recommended_action}
-                </Text>
-              ) : null}
-              <Text style={styles.analysisExpandHint}>Tap to read more →</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
-      {/* Back button */}
-      <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </Pressable>
-
-      {/* Journal entry point */}
-      <Pressable
-        style={styles.journalButton}
-        onPress={() => navigation.navigate("PlantJournal", { plantId })}
-      >
-        <Text style={styles.journalButtonText}>📖 Journal</Text>
-      </Pressable>
-
-      <FlatList
-        data={events}
-        renderItem={renderEvent}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <>
-            {/* Plant header */}
-            {plant.photo_url ? (
-              <Image
-                source={{ uri: plant.photo_url }}
-                style={styles.heroImage}
-              />
-            ) : (
-              <View style={[styles.heroImage, styles.heroPlaceholder]}>
-                <Text style={styles.heroPlaceholderText}>🌱</Text>
-              </View>
-            )}
-
-            <View style={styles.infoSection}>
-              <View style={styles.nameRow}>
-                <Text style={styles.plantName}>{plant.name}</Text>
-                <View
-                  style={[styles.statusBadge, { backgroundColor: config.bg }]}
-                >
-                  <Text style={[styles.statusText, { color: config.text }]}>
-                    {config.label}
-                  </Text>
-                </View>
-              </View>
-              {plant.species ? (
-                <Text style={styles.species}>{plant.species}</Text>
-              ) : null}
-              {plant.location ? (
-                <Text style={styles.location}>{plant.location}</Text>
-              ) : null}
-            </View>
-
-            {/* Care stats */}
-            <View style={styles.statsRow}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>
-                  {careStats.avgInterval !== null
-                    ? `${careStats.avgInterval}d`
-                    : "—"}
-                </Text>
-                <Text style={styles.statLabel}>Avg. watering interval</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{careStats.recentCount}</Text>
-                <Text style={styles.statLabel}>Events (30 days)</Text>
-              </View>
-            </View>
-
-            {/* Frequency proposal */}
-            {proposal && !proposalDismissed ? (
-              <View style={styles.proposalCard}>
-                <Text style={styles.proposalEyebrow}>Schedule suggestion</Text>
-                <Text style={styles.proposalBody}>
-                  You've watered{" "}
-                  <Text style={styles.proposalBold}>{plant.name}</Text> every{" "}
-                  <Text style={styles.proposalBold}>
-                    {proposal.median_days.toFixed(1)} days
-                  </Text>{" "}
-                  on average, across {proposal.count} waterings.
-                </Text>
-                <Text style={styles.proposalBody}>
-                  Current schedule: every {proposal.current_days} days.
-                </Text>
-                <Text style={styles.proposalQuestion}>
-                  Update to {proposal.proposed_days} days?
-                </Text>
-                <View style={styles.proposalConfidenceRow}>
-                  <Text style={styles.proposalConfidenceLabel}>Confidence</Text>
-                  <View
-                    style={[
-                      styles.confidenceBadge,
-                      {
-                        backgroundColor:
-                          CONFIDENCE_CONFIG[proposal.confidence].bg,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.confidenceText,
-                        { color: CONFIDENCE_CONFIG[proposal.confidence].text },
-                      ]}
-                    >
-                      {CONFIDENCE_CONFIG[proposal.confidence].label}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.proposalActions}>
-                  <Pressable
-                    style={styles.proposalKeepButton}
-                    onPress={() => setProposalDismissed(true)}
-                    disabled={accepting}
-                  >
-                    <Text style={styles.proposalKeepText}>Keep</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[
-                      styles.proposalUpdateButton,
-                      accepting && styles.submitButtonDisabled,
-                    ]}
-                    onPress={handleAcceptProposal}
-                    disabled={accepting}
-                  >
-                    {accepting ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.proposalUpdateText}>Update</Text>
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-            ) : null}
-
-            {/* Timeline header */}
-            <Text style={styles.sectionTitle}>Timeline</Text>
-            {events.length === 0 && (
-              <Text style={styles.emptyTimeline}>
-                No events yet. Tap the button below to log one.
-              </Text>
-            )}
-          </>
-        }
-      />
-
-      {/* Bottom buttons */}
-      <View style={styles.bottomButtons}>
+      <View style={styles.topBar}>
         <Pressable
-          style={styles.photoCheckInButton}
-          onPress={handlePhotoCheckIn}
+          style={styles.iconButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={8}
         >
-          <Text style={styles.photoCheckInButtonText}>📷 Photo Check-In</Text>
+          <Text style={styles.iconButtonText}>←</Text>
         </Pressable>
         <Pressable
-          style={styles.logButton}
-          onPress={() => setShowLogModal(true)}
+          style={styles.journalButton}
+          onPress={() => navigation.navigate("PlantJournal", { plantId })}
+          hitSlop={8}
         >
-          <Text style={styles.logButtonText}>+ Log Event</Text>
+          <Text style={styles.journalButtonText}>Journal</Text>
         </Pressable>
       </View>
 
-      {/* Analysis result modal */}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.infoSection}>
+          <View style={styles.nameRow}>
+            <Text style={styles.plantName} numberOfLines={2}>
+              {plant.name}
+            </Text>
+            <StatusBadge status={status} />
+          </View>
+          {plant.species ? (
+            <Text style={styles.species}>{plant.species}</Text>
+          ) : null}
+          {plant.location ? (
+            <Text style={styles.location}>{plant.location}</Text>
+          ) : null}
+        </View>
+
+        {photoStrip ? (
+          <View style={styles.photoStripWrap}>
+            {photoStrip.kind === "pair" ? (
+              <View style={styles.photoStripRow}>
+                <PhotoCell
+                  uri={photoStrip.firstUrl}
+                  overline="Day 1"
+                  caption={photoStrip.firstLabel}
+                />
+                <PhotoCell
+                  uri={photoStrip.lastUrl}
+                  overline="Now"
+                  caption={photoStrip.lastLabel}
+                />
+              </View>
+            ) : (
+              <Image
+                source={{ uri: photoStrip.url }}
+                style={styles.singlePhoto}
+              />
+            )}
+          </View>
+        ) : null}
+
+        <View style={styles.statsRow}>
+          <StatCard
+            value={
+              careStats.avgInterval !== null ? `${careStats.avgInterval}d` : "—"
+            }
+            label="Avg. interval"
+          />
+          <StatCard
+            value={`${careStats.recentCount}`}
+            label="Events · 30d"
+          />
+          <StatCard
+            value={`${careStats.daysWithPlant}`}
+            label="Days together"
+          />
+        </View>
+
+        {events.length > 0 && (
+          <View style={styles.rhythmSection}>
+            <EyebrowLabel>30-day rhythm</EyebrowLabel>
+            <View style={styles.rhythmRow}>
+              {Array.from({ length: RHYTHM_DAYS }).map((_, i) => {
+                const daysAgo = RHYTHM_DAYS - 1 - i;
+                return (
+                  <View
+                    key={daysAgo}
+                    style={[
+                      styles.rhythmDot,
+                      { backgroundColor: rhythmDot(daysAgo, events) },
+                    ]}
+                  />
+                );
+              })}
+            </View>
+            <View style={styles.rhythmLegend}>
+              <LegendDot color={colors.forest} label="watered" />
+              <LegendDot color={colors.rain} label="photo" />
+              <LegendDot color={colors.sage} label="other" />
+            </View>
+          </View>
+        )}
+
+        {proposal && !proposalDismissed ? (
+          <View style={styles.proposalCard}>
+            <EyebrowLabel>Schedule suggestion</EyebrowLabel>
+            <Text style={styles.proposalLede}>
+              Care guides say{" "}
+              <Text style={styles.proposalEmphasis}>
+                {proposal.current_days}
+              </Text>
+              ; you've found your own rhythm at{" "}
+              <Text style={styles.proposalEmphasis}>
+                {proposal.median_days.toFixed(1)} days
+              </Text>
+              .
+            </Text>
+            <Text style={styles.proposalMeta}>
+              Median of {proposal.count} waterings · update to{" "}
+              {proposal.proposed_days} days?
+            </Text>
+            <View style={styles.proposalConfidence}>
+              <ConfidenceBar
+                confidence={proposal.confidence}
+                fillPercent={CONFIDENCE_TIER[proposal.confidence].fillPercent}
+                errorDays={CONFIDENCE_TIER[proposal.confidence].errorDays}
+              />
+            </View>
+            <View style={styles.proposalActions}>
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => setProposalDismissed(true)}
+                disabled={accepting}
+              >
+                <Text style={styles.secondaryButtonText}>Keep</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.primaryButton,
+                  accepting && styles.buttonDisabled,
+                ]}
+                onPress={handleAcceptProposal}
+                disabled={accepting}
+              >
+                {accepting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Update</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        <View style={styles.timelineHeader}>
+          <EyebrowLabel>Timeline</EyebrowLabel>
+        </View>
+
+        {events.length === 0 ? (
+          <Text style={styles.emptyTimeline}>
+            No events yet. Tap + Log event below to start.
+          </Text>
+        ) : (
+          weekGroups.map((group) => (
+            <View key={group.key} style={styles.weekBlock}>
+              <Text style={styles.weekLabel}>{group.label}</Text>
+              {group.events.map((event) => (
+                <EventRow
+                  key={event.id}
+                  event={event}
+                  onPressAnalysis={(a) => {
+                    setAnalysisResult(a);
+                    setShowAnalysisModal(true);
+                  }}
+                />
+              ))}
+            </View>
+          ))
+        )}
+      </ScrollView>
+
+      <View style={styles.bottomBar}>
+        <Pressable style={styles.secondaryBottom} onPress={handlePhotoCheckIn}>
+          <Text style={styles.secondaryBottomText}>Photo check-in</Text>
+        </Pressable>
+        <Pressable
+          style={styles.primaryBottom}
+          onPress={() => setShowLogModal(true)}
+        >
+          <Text style={styles.primaryBottomText}>+ Log event</Text>
+        </Pressable>
+      </View>
+
       <Modal
         visible={showAnalysisModal}
         transparent
@@ -604,9 +668,7 @@ export default function PlantProfileScreen({
             {analysisResult && (
               <>
                 <View style={styles.analysisModalHeader}>
-                  <Text style={[styles.modalTitle, { marginBottom: 0 }]}>
-                    Photo Analysis
-                  </Text>
+                  <Text style={styles.modalTitle}>Photo analysis</Text>
                   <Pressable
                     style={styles.modalCloseButton}
                     onPress={() => setShowAnalysisModal(false)}
@@ -619,36 +681,17 @@ export default function PlantProfileScreen({
                 </View>
                 <ScrollView
                   style={styles.analysisModalScroll}
-                  contentContainerStyle={styles.analysisModalScrollContent}
                   showsVerticalScrollIndicator
                 >
-                  <View
-                    style={[
-                      styles.analysisBadge,
-                      {
-                        backgroundColor:
-                          ANALYSIS_STATUS_CONFIG[analysisResult.status].bg,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.analysisBadgeLabelText,
-                        {
-                          color:
-                            ANALYSIS_STATUS_CONFIG[analysisResult.status].text,
-                        },
-                      ]}
-                    >
-                      {ANALYSIS_STATUS_CONFIG[analysisResult.status].label}
-                    </Text>
-                  </View>
+                  <AnalysisStatusPill status={analysisResult.status} large />
                   <Text style={styles.analysisModalObservations}>
                     {analysisResult.observations}
                   </Text>
                   {analysisResult.recommended_action ? (
                     <View style={styles.actionBox}>
-                      <Text style={styles.actionLabel}>Recommended Action</Text>
+                      <EyebrowLabel color={ANALYSIS_TONE.concern.text}>
+                        Recommended action
+                      </EyebrowLabel>
                       <Text style={styles.actionText}>
                         {analysisResult.recommended_action}
                       </Text>
@@ -661,7 +704,6 @@ export default function PlantProfileScreen({
         </View>
       </Modal>
 
-      {/* Log event modal */}
       <Modal
         visible={showLogModal}
         transparent
@@ -670,38 +712,38 @@ export default function PlantProfileScreen({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Log Event</Text>
+            <Text style={styles.modalTitle}>Log event</Text>
 
             <View style={styles.typePicker}>
-              {EVENT_TYPES.map((type) => (
-                <Pressable
-                  key={type}
-                  style={[
-                    styles.typeOption,
-                    selectedEventType === type && styles.typeOptionSelected,
-                  ]}
-                  onPress={() => setSelectedEventType(type)}
-                >
-                  <Text style={styles.typeOptionIcon}>
-                    {EVENT_ICONS[type]}
-                  </Text>
-                  <Text
+              {EVENT_TYPES.map((type) => {
+                const selected = selectedEventType === type;
+                return (
+                  <Pressable
+                    key={type}
                     style={[
-                      styles.typeOptionLabel,
-                      selectedEventType === type &&
-                        styles.typeOptionLabelSelected,
+                      styles.typeOption,
+                      selected && styles.typeOptionSelected,
                     ]}
+                    onPress={() => setSelectedEventType(type)}
                   >
-                    {EVENT_LABELS[type]}
-                  </Text>
-                </Pressable>
-              ))}
+                    <EventIcon type={type} size={32} />
+                    <Text
+                      style={[
+                        styles.typeOptionLabel,
+                        selected && styles.typeOptionLabelSelected,
+                      ]}
+                    >
+                      {EVENT_LABELS[type]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             <TextInput
               style={styles.notesInput}
               placeholder="Notes (optional)"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.muted}
               value={notes}
               onChangeText={setNotes}
               multiline
@@ -709,19 +751,19 @@ export default function PlantProfileScreen({
 
             <View style={styles.modalActions}>
               <Pressable
-                style={styles.cancelButton}
+                style={styles.secondaryButton}
                 onPress={() => {
                   setShowLogModal(false);
                   setNotes("");
                   setSelectedEventType("watered");
                 }}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={[
-                  styles.submitButton,
-                  submitting && styles.submitButtonDisabled,
+                  styles.primaryButton,
+                  submitting && styles.buttonDisabled,
                 ]}
                 onPress={handleLogEvent}
                 disabled={submitting}
@@ -729,7 +771,7 @@ export default function PlantProfileScreen({
                 {submitting ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.submitButtonText}>Save</Text>
+                  <Text style={styles.primaryButtonText}>Save</Text>
                 )}
               </Pressable>
             </View>
@@ -740,238 +782,389 @@ export default function PlantProfileScreen({
   );
 }
 
+function StatCard({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function PhotoCell({
+  uri,
+  overline,
+  caption,
+}: {
+  uri: string;
+  overline: string;
+  caption: string;
+}) {
+  return (
+    <View style={styles.photoCell}>
+      <Image source={{ uri }} style={styles.photoCellImage} />
+      <Text style={styles.photoOverline}>{overline}</Text>
+      <Text style={styles.photoCaption}>{caption}</Text>
+    </View>
+  );
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendSwatch, { backgroundColor: color }]} />
+      <Text style={styles.legendLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function AnalysisStatusPill({
+  status,
+  large,
+}: {
+  status: AnalysisStatus;
+  large?: boolean;
+}) {
+  const tone = ANALYSIS_TONE[status];
+  return (
+    <View
+      style={[
+        styles.analysisPill,
+        { backgroundColor: tone.bg },
+        large && styles.analysisPillLarge,
+      ]}
+    >
+      <View style={[styles.analysisPillDot, { backgroundColor: tone.dot }]} />
+      <Text
+        style={[
+          styles.analysisPillText,
+          { color: tone.text },
+          large && styles.analysisPillTextLarge,
+        ]}
+      >
+        {tone.label}
+      </Text>
+    </View>
+  );
+}
+
+function EventRow({
+  event,
+  onPressAnalysis,
+}: {
+  event: PlantEvent;
+  onPressAnalysis: (a: AIPhotoAnalysisResult) => void;
+}) {
+  const analysis = parseAnalysis(event.ai_analysis);
+  return (
+    <View style={styles.eventRow}>
+      <EventIcon type={event.event_type} />
+      <View style={styles.eventContent}>
+        <View style={styles.eventHeader}>
+          <Text style={styles.eventType}>{EVENT_LABELS[event.event_type]}</Text>
+          <Text style={styles.eventTime}>{relativeTime(event.created_at)}</Text>
+        </View>
+        {event.notes ? (
+          <Text style={styles.eventNotes} numberOfLines={2}>
+            {event.notes}
+          </Text>
+        ) : null}
+        {analysis ? (
+          <Pressable
+            style={styles.analysisInline}
+            onPress={() => onPressAnalysis(analysis)}
+          >
+            <AnalysisStatusPill status={analysis.status} />
+            <Text style={styles.analysisObservations} numberOfLines={3}>
+              {analysis.observations}
+            </Text>
+            <Text style={styles.analysisExpandHint}>Tap to read more →</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8faf5",
+    backgroundColor: colors.paper,
   },
   centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8faf5",
+    backgroundColor: colors.paper,
   },
   analyzingText: {
-    fontSize: 16,
-    color: "#2d5016",
-    marginTop: 16,
-  },
-  backButton: {
-    position: "absolute",
-    top: 54,
-    left: 16,
-    zIndex: 10,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  backButtonText: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 15,
-    fontWeight: "600",
-    color: "#2d5016",
+    color: colors.bark,
+    marginTop: spacing.base,
+  },
+
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.base,
+    paddingTop: 54,
+    paddingBottom: spacing.sm,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconButtonText: {
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 18,
+    color: colors.forest,
+    marginTop: -2,
   },
   journalButton: {
-    position: "absolute",
-    top: 54,
-    right: 16,
-    zIndex: 10,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: "center",
+    justifyContent: "center",
   },
   journalButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#2d5016",
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 13,
+    color: colors.forest,
   },
-  listContent: {
+
+  scroll: {
+    paddingHorizontal: spacing.gutter,
     paddingBottom: 120,
   },
-  heroImage: {
-    width: "100%",
-    height: 280,
-  },
-  heroPlaceholder: {
-    backgroundColor: "#e8f0e0",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroPlaceholderText: {
-    fontSize: 64,
-  },
+
   infoSection: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
+    marginTop: spacing.sm,
   },
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: spacing.md,
   },
   plantName: {
+    fontFamily: fonts.spectralSemiBold,
     fontSize: 26,
-    fontWeight: "700",
-    color: "#2d5016",
+    lineHeight: 32,
+    color: colors.ink,
     flexShrink: 1,
   },
-  statusBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
   species: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 15,
-    color: "#666",
+    color: colors.bark,
     marginTop: 4,
   },
   location: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 13,
-    color: "#999",
+    color: colors.muted,
     marginTop: 2,
   },
+
+  photoStripWrap: {
+    marginTop: spacing.lg,
+  },
+  photoStripRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  photoCell: {
+    flex: 1,
+  },
+  photoCellImage: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  photoOverline: {
+    ...typography.label,
+    color: colors.fern,
+    marginTop: spacing.sm,
+  },
+  photoCaption: {
+    fontFamily: fonts.monoRegular,
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  singlePhoto: {
+    width: "100%",
+    aspectRatio: 16 / 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+
   statsRow: {
     flexDirection: "row",
-    paddingHorizontal: 24,
-    marginTop: 20,
-    gap: 12,
+    gap: spacing.md,
+    marginTop: spacing.gutter,
   },
   statCard: {
     flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#e0e8d8",
+    borderColor: colors.line,
+    padding: spacing.md,
     alignItems: "center",
   },
   statValue: {
+    fontFamily: fonts.monoMedium,
     fontSize: 22,
-    fontWeight: "700",
-    color: "#2d5016",
+    color: colors.ink,
   },
   statLabel: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 11,
-    color: "#888",
+    color: colors.muted,
     marginTop: 4,
     textAlign: "center",
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#2d5016",
-    paddingHorizontal: 24,
-    marginTop: 24,
-    marginBottom: 12,
+
+  rhythmSection: {
+    marginTop: spacing.gutter,
   },
-  proposalCard: {
-    marginHorizontal: 24,
-    marginTop: 20,
-    backgroundColor: "#f4f8ee",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#cfdcb8",
-    padding: 16,
-  },
-  proposalEyebrow: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#5a7029",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  proposalBody: {
-    fontSize: 14,
-    color: "#3a4a20",
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  proposalBold: {
-    fontWeight: "700",
-    color: "#2d5016",
-  },
-  proposalQuestion: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#2d5016",
-    marginTop: 12,
-  },
-  proposalConfidenceRow: {
+  rhythmRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 10,
-    gap: 8,
+    gap: 4,
+    marginTop: spacing.md,
   },
-  proposalConfidenceLabel: {
-    fontSize: 12,
-    color: "#5a7029",
-    fontWeight: "600",
+  rhythmDot: {
+    flex: 1,
+    height: 8,
+    borderRadius: radius.full,
+    maxWidth: 10,
   },
-  confidenceBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+  rhythmLegend: {
+    flexDirection: "row",
+    gap: spacing.base,
+    marginTop: spacing.sm,
   },
-  confidenceText: {
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  legendSwatch: {
+    width: 8,
+    height: 8,
+    borderRadius: radius.full,
+  },
+  legendLabel: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 11,
-    fontWeight: "700",
-    textTransform: "capitalize",
+    color: colors.muted,
+  },
+
+  proposalCard: {
+    marginTop: spacing.gutter,
+    backgroundColor: colors.eventBgFrequency,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.sageBorder,
+    padding: spacing.base,
+  },
+  proposalLede: {
+    fontFamily: fonts.spectralRegular,
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.ink,
+    marginTop: spacing.sm,
+  },
+  proposalEmphasis: {
+    fontFamily: fonts.spectralSemiBold,
+    color: colors.forest,
+  },
+  proposalMeta: {
+    fontFamily: fonts.hankenRegular,
+    fontSize: 13,
+    color: colors.bark,
+    marginTop: spacing.sm,
+  },
+  proposalConfidence: {
+    marginTop: spacing.md,
   },
   proposalActions: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
+    gap: spacing.md,
+    marginTop: spacing.base,
   },
-  proposalKeepButton: {
+
+  primaryButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#cfdcb8",
-    backgroundColor: "#fff",
+    borderRadius: radius.md,
+    backgroundColor: colors.forest,
     alignItems: "center",
   },
-  proposalKeepText: {
+  primaryButtonText: {
+    fontFamily: fonts.hankenSemiBold,
     fontSize: 14,
-    fontWeight: "600",
-    color: "#5a7029",
-  },
-  proposalUpdateButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: "#2d5016",
-    alignItems: "center",
-  },
-  proposalUpdateText: {
-    fontSize: 14,
-    fontWeight: "700",
     color: "#fff",
   },
-  emptyTimeline: {
-    fontSize: 14,
-    color: "#999",
-    textAlign: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+  secondaryButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.sageBorder,
+    alignItems: "center",
   },
+  secondaryButtonText: {
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 14,
+    color: colors.forest,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+
+  timelineHeader: {
+    marginTop: spacing.gutter,
+    marginBottom: spacing.sm,
+  },
+  emptyTimeline: {
+    fontFamily: fonts.hankenRegular,
+    fontSize: 14,
+    color: colors.muted,
+    textAlign: "center",
+    paddingVertical: spacing.xl,
+  },
+  weekBlock: {
+    marginTop: spacing.base,
+  },
+  weekLabel: {
+    ...typography.label,
+    color: colors.bark,
+    marginBottom: spacing.sm,
+  },
+
   eventRow: {
     flexDirection: "row",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  eventIcon: {
-    fontSize: 20,
-    marginRight: 12,
-    marginTop: 2,
+    borderBottomColor: colors.line,
+    gap: spacing.md,
   },
   eventContent: {
     flex: 1,
@@ -982,56 +1175,125 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   eventType: {
+    fontFamily: fonts.hankenSemiBold,
     fontSize: 15,
-    fontWeight: "600",
-    color: "#333",
+    color: colors.ink,
   },
   eventTime: {
-    fontSize: 12,
-    color: "#999",
+    fontFamily: fonts.monoRegular,
+    fontSize: 11,
+    color: colors.muted,
   },
   eventNotes: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 13,
-    color: "#666",
+    lineHeight: 18,
+    color: colors.bark,
     marginTop: 4,
   },
+
   analysisInline: {
-    marginTop: 8,
-    backgroundColor: "#f8f9f5",
-    borderRadius: 8,
-    padding: 10,
+    marginTop: spacing.sm,
+    backgroundColor: colors.mist,
+    borderRadius: radius.md,
+    padding: spacing.md - 2,
     borderWidth: 1,
-    borderColor: "#e8ece2",
-  },
-  analysisBadgeSmall: {
-    alignSelf: "flex-start",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginBottom: 6,
-  },
-  analysisBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+    borderColor: colors.line,
+    gap: 6,
   },
   analysisObservations: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 13,
-    color: "#555",
     lineHeight: 18,
-  },
-  analysisAction: {
-    fontSize: 12,
-    color: "#c0392b",
-    marginTop: 4,
-    fontStyle: "italic",
+    color: colors.bark,
   },
   analysisExpandHint: {
+    fontFamily: fonts.hankenSemiBold,
     fontSize: 11,
-    color: "#5a7029",
-    fontWeight: "600",
-    marginTop: 8,
+    color: colors.fern,
     textAlign: "right",
   },
+
+  analysisPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    alignSelf: "flex-start",
+  },
+  analysisPillLarge: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginBottom: spacing.md,
+  },
+  analysisPillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radius.full,
+  },
+  analysisPillText: {
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 11,
+  },
+  analysisPillTextLarge: {
+    fontSize: 13,
+  },
+
+  bottomBar: {
+    position: "absolute",
+    bottom: 32,
+    left: spacing.gutter,
+    right: spacing.gutter,
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  secondaryBottom: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.sageBorder,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  secondaryBottomText: {
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 14,
+    color: colors.forest,
+  },
+  primaryBottom: {
+    flex: 1,
+    backgroundColor: colors.forest,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  primaryBottomText: {
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 14,
+    color: "#fff",
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(38,39,32,0.45)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.gutter,
+    paddingBottom: spacing.xxl,
+  },
+  modalTitle: {
+    fontFamily: fonts.spectralSemiBold,
+    fontSize: 20,
+    color: colors.ink,
+  },
+
   analysisModalContent: {
     maxHeight: "80%",
   },
@@ -1039,190 +1301,90 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: spacing.lg,
   },
   modalCloseButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: "#f0f4ea",
+    borderRadius: radius.full,
+    backgroundColor: colors.wash,
     alignItems: "center",
     justifyContent: "center",
   },
   modalCloseButtonText: {
+    fontFamily: fonts.hankenSemiBold,
     fontSize: 22,
-    color: "#5a7029",
-    fontWeight: "600",
-    lineHeight: 24,
+    color: colors.forest,
     marginTop: -2,
   },
   analysisModalScroll: {
     flexGrow: 0,
-    marginBottom: 16,
-  },
-  analysisModalScrollContent: {
-    paddingBottom: 4,
-  },
-  bottomButtons: {
-    position: "absolute",
-    bottom: 36,
-    left: 24,
-    right: 24,
-    flexDirection: "row",
-    gap: 12,
-  },
-  photoCheckInButton: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#2d5016",
-  },
-  photoCheckInButtonText: {
-    color: "#2d5016",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  logButton: {
-    flex: 1,
-    backgroundColor: "#2d5016",
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  logButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#2d5016",
-    marginBottom: 20,
-  },
-  analysisBadge: {
-    alignSelf: "flex-start",
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    marginBottom: 16,
-  },
-  analysisBadgeLabelText: {
-    fontSize: 16,
-    fontWeight: "700",
   },
   analysisModalObservations: {
-    fontSize: 16,
-    color: "#333",
-    lineHeight: 24,
-    marginBottom: 16,
+    fontFamily: fonts.hankenRegular,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.ink,
+    marginBottom: spacing.base,
   },
   actionBox: {
-    backgroundColor: "#fef3f0",
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#fde0d8",
-  },
-  actionLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#c0392b",
-    marginBottom: 4,
+    backgroundColor: colors.waterTodayBg,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    gap: 4,
   },
   actionText: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 14,
-    color: "#555",
     lineHeight: 20,
+    color: colors.waterTodayText,
   },
+
   typePicker: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 16,
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    marginBottom: spacing.base,
   },
   typeOption: {
     flex: 1,
     alignItems: "center",
-    padding: 10,
-    borderRadius: 12,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xs,
+    gap: 4,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#e0e8d8",
-    backgroundColor: "#fff",
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
   },
   typeOptionSelected: {
-    backgroundColor: "#e8f5e9",
-    borderColor: "#2d5016",
-  },
-  typeOptionIcon: {
-    fontSize: 20,
-    marginBottom: 4,
+    backgroundColor: colors.wash,
+    borderColor: colors.sageBorder,
   },
   typeOptionLabel: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 11,
-    color: "#666",
-    fontWeight: "500",
+    color: colors.bark,
   },
   typeOptionLabelSelected: {
-    color: "#2d5016",
-    fontWeight: "700",
+    fontFamily: fonts.hankenSemiBold,
+    color: colors.forest,
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: "#e0e8d8",
-    borderRadius: 12,
-    padding: 14,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    fontFamily: fonts.hankenRegular,
     fontSize: 15,
+    color: colors.ink,
     minHeight: 80,
     textAlignVertical: "top",
-    marginBottom: 16,
-    color: "#333",
+    marginBottom: spacing.base,
   },
   modalActions: {
     flexDirection: "row",
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e0e8d8",
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#666",
-  },
-  submitButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: "#2d5016",
-    alignItems: "center",
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#fff",
+    gap: spacing.md,
   },
 });
