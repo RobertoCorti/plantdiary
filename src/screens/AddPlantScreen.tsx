@@ -15,6 +15,15 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
+import {
+  colors,
+  fonts,
+  radius,
+  spacing,
+  typography,
+} from "../lib/theme";
+import { ConfidenceBar } from "../components/ConfidenceBar";
+import { EyebrowLabel } from "../components/EyebrowLabel";
 import type { AIIdentificationResult } from "../types";
 
 type Props = {
@@ -24,13 +33,17 @@ type Props = {
 
 type Step = "photo" | "identifying" | "details" | "saving";
 
+const CONFIDENCE_FILL: Record<AIIdentificationResult["confidence"], number> = {
+  low: 28,
+  medium: 62,
+  high: 92,
+};
+
 export default function AddPlantScreen({ session, onPlantAdded }: Props) {
   const [step, setStep] = useState<Step>("photo");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [aiResult, setAiResult] = useState<AIIdentificationResult | null>(
-    null,
-  );
+  const [aiResult, setAiResult] = useState<AIIdentificationResult | null>(null);
   const [nickname, setNickname] = useState("");
   const [location, setLocation] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +53,7 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
-          "Camera Permission Required",
+          "Camera permission required",
           "Please enable camera access in your device settings to take photos."
         );
         return;
@@ -71,7 +84,6 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
     setError(null);
 
     try {
-      // Upload to Supabase Storage
       const fileExt = uri.split(".").pop() ?? "jpg";
       const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
 
@@ -108,7 +120,6 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
 
       setPhotoUrl(publicUrl);
 
-      // Call Edge Function for AI identification
       const fnResp = await fetch(
         `${supabaseUrl}/functions/v1/identify-plant`,
         {
@@ -118,7 +129,7 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ photo_url: publicUrl }),
-        },
+        }
       );
 
       if (!fnResp.ok) {
@@ -170,11 +181,11 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
   if (step === "identifying" || step === "saving") {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2d5016" />
+        <ActivityIndicator size="large" color={colors.forest} />
         <Text style={styles.loadingText}>
           {step === "identifying"
-            ? "Identifying your plant..."
-            : "Saving your plant..."}
+            ? "Identifying your plant…"
+            : "Saving…"}
         </Text>
         {imageUri && (
           <Image source={{ uri: imageUri }} style={styles.previewSmall} />
@@ -193,7 +204,7 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>Plant Identified</Text>
+          <Text style={styles.title}>Plant identified</Text>
 
           {imageUri && (
             <Image source={{ uri: imageUri }} style={styles.previewLarge} />
@@ -202,58 +213,48 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
           <View style={styles.resultCard}>
             <Text style={styles.speciesName}>{aiResult.common_name}</Text>
             <Text style={styles.scientificName}>{aiResult.species}</Text>
-            <Text style={styles.confidence}>
-              Confidence: {aiResult.confidence}
-            </Text>
+
+            <View style={styles.confidenceWrap}>
+              <ConfidenceBar
+                confidence={aiResult.confidence}
+                fillPercent={CONFIDENCE_FILL[aiResult.confidence]}
+              />
+            </View>
 
             <View style={styles.careRow}>
-              <View style={styles.careItem}>
-                <Text style={styles.careLabel}>Water</Text>
-                <Text style={styles.careValue}>
-                  Every {aiResult.watering_frequency_days} days
-                </Text>
-              </View>
-              <View style={styles.careItem}>
-                <Text style={styles.careLabel}>Light</Text>
-                <Text style={styles.careValue}>{aiResult.light}</Text>
-              </View>
-              <View style={styles.careItem}>
-                <Text style={styles.careLabel}>Humidity</Text>
-                <Text style={styles.careValue}>{aiResult.humidity}</Text>
-              </View>
+              <CareCell label="Water" value={`${aiResult.watering_frequency_days}d`} />
+              <CareCell label="Light" value={aiResult.light} />
+              <CareCell label="Humidity" value={aiResult.humidity} />
             </View>
 
             <Text style={styles.careNotes}>{aiResult.care_notes}</Text>
           </View>
 
-          <Text style={styles.fieldLabel}>Nickname *</Text>
+          <EyebrowLabel>Nickname</EyebrowLabel>
           <TextInput
             style={styles.input}
             placeholder='e.g. "Giorgio"'
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.muted}
             value={nickname}
             onChangeText={setNickname}
           />
 
-          <Text style={styles.fieldLabel}>Location</Text>
+          <EyebrowLabel>Location</EyebrowLabel>
           <TextInput
             style={styles.input}
             placeholder='e.g. "Living room window"'
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.muted}
             value={location}
             onChangeText={setLocation}
           />
 
           {error && <Text style={styles.errorText}>{error}</Text>}
 
-          <Pressable style={styles.saveButton} onPress={savePlant}>
-            <Text style={styles.saveButtonText}>Save Plant</Text>
+          <Pressable style={styles.primaryButton} onPress={savePlant}>
+            <Text style={styles.primaryButtonText}>Save plant</Text>
           </Pressable>
 
-          <Pressable
-            style={styles.cancelButton}
-            onPress={onPlantAdded}
-          >
+          <Pressable style={styles.cancelButton} onPress={onPlantAdded}>
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </Pressable>
         </ScrollView>
@@ -261,13 +262,12 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
     );
   }
 
-  // Photo step
   return (
     <View style={styles.container}>
       <View style={styles.photoContent}>
-        <Text style={styles.title}>Add a Plant</Text>
+        <Text style={styles.title}>Add a plant</Text>
         <Text style={styles.subtitle}>
-          Take a photo or pick one from your gallery
+          Take a photo or pick one from your gallery and we'll identify it.
         </Text>
 
         {imageUri && (
@@ -276,26 +276,18 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
 
         {error && <Text style={styles.errorText}>{error}</Text>}
 
-        <Pressable
-          style={styles.photoButton}
-          onPress={() => pickImage(true)}
-        >
-          <Text style={styles.photoButtonText}>Take Photo</Text>
+        <Pressable style={styles.primaryButton} onPress={() => pickImage(true)}>
+          <Text style={styles.primaryButtonText}>Take photo</Text>
         </Pressable>
 
         <Pressable
-          style={[styles.photoButton, styles.photoButtonSecondary]}
+          style={styles.secondaryButton}
           onPress={() => pickImage(false)}
         >
-          <Text style={[styles.photoButtonText, styles.photoButtonTextSecondary]}>
-            Choose from Gallery
-          </Text>
+          <Text style={styles.secondaryButtonText}>Choose from gallery</Text>
         </Pressable>
 
-        <Pressable
-          style={styles.cancelButton}
-          onPress={onPlantAdded}
-        >
+        <Pressable style={styles.cancelButton} onPress={onPlantAdded}>
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </Pressable>
       </View>
@@ -303,170 +295,181 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
   );
 }
 
+function CareCell({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.careItem}>
+      <Text style={styles.careLabel}>{label}</Text>
+      <Text style={styles.careValue}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8faf5",
+    backgroundColor: colors.paper,
   },
   centered: {
     flex: 1,
-    backgroundColor: "#f8faf5",
+    backgroundColor: colors.paper,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.gutter,
   },
   photoContent: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 80,
+    paddingHorizontal: spacing.gutter,
+    paddingTop: 72,
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 80,
-    paddingBottom: 40,
+    paddingHorizontal: spacing.gutter,
+    paddingTop: 72,
+    paddingBottom: spacing.xxl,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#2d5016",
-    marginBottom: 8,
+    ...typography.display,
+    color: colors.ink,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: "#888",
-    marginBottom: 24,
+    fontFamily: fonts.hankenRegular,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.bark,
+    marginBottom: spacing.gutter,
   },
   loadingText: {
-    fontSize: 16,
-    color: "#2d5016",
-    marginTop: 16,
+    fontFamily: fonts.hankenRegular,
+    fontSize: 15,
+    color: colors.bark,
+    marginTop: spacing.base,
   },
   previewSmall: {
     width: 120,
     height: 120,
-    borderRadius: 12,
-    marginTop: 24,
+    borderRadius: radius.md,
+    marginTop: spacing.gutter,
+    borderWidth: 1,
+    borderColor: colors.line,
   },
   previewLarge: {
     width: "100%",
     aspectRatio: 1,
-    borderRadius: 16,
-    marginBottom: 20,
-  },
-  resultCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
+    borderRadius: radius.lg,
+    marginBottom: spacing.lg,
     borderWidth: 1,
-    borderColor: "#e0e8d8",
+    borderColor: colors.line,
+  },
+
+  resultCard: {
+    backgroundColor: colors.mist,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.gutter,
+    borderWidth: 1,
+    borderColor: colors.line,
   },
   speciesName: {
+    fontFamily: fonts.spectralSemiBold,
     fontSize: 22,
-    fontWeight: "700",
-    color: "#2d5016",
+    color: colors.ink,
   },
   scientificName: {
+    fontFamily: fonts.spectralItalic,
     fontSize: 14,
-    fontStyle: "italic",
-    color: "#666",
+    color: colors.bark,
     marginTop: 2,
   },
-  confidence: {
-    fontSize: 12,
-    color: "#888",
-    marginTop: 4,
-    marginBottom: 16,
+  confidenceWrap: {
+    marginTop: spacing.md,
+    marginBottom: spacing.base,
   },
   careRow: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
+    gap: spacing.sm,
+    marginBottom: spacing.base,
   },
   careItem: {
     flex: 1,
-    backgroundColor: "#f0f5eb",
-    borderRadius: 10,
-    padding: 10,
+    backgroundColor: colors.wash,
+    borderRadius: radius.md,
+    padding: spacing.sm + 2,
     alignItems: "center",
+    gap: 2,
   },
   careLabel: {
-    fontSize: 11,
-    color: "#888",
-    fontWeight: "600",
-    marginBottom: 4,
+    ...typography.label,
+    color: colors.fern,
+    fontSize: 10,
+    letterSpacing: 1.2,
   },
   careValue: {
-    fontSize: 12,
-    color: "#2d5016",
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 13,
+    color: colors.ink,
     textAlign: "center",
   },
   careNotes: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 14,
-    color: "#555",
     lineHeight: 20,
+    color: colors.bark,
   },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 6,
-  },
+
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.base,
     paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 16,
-    color: "#333",
+    fontFamily: fonts.hankenRegular,
+    fontSize: 15,
+    color: colors.ink,
+    marginTop: spacing.sm,
+    marginBottom: spacing.base,
   },
   errorText: {
-    color: "#c0392b",
-    fontSize: 14,
-    marginBottom: 16,
+    fontFamily: fonts.hankenRegular,
+    fontSize: 13,
+    color: colors.waterTodayText,
+    marginBottom: spacing.base,
     textAlign: "center",
   },
-  photoButton: {
-    backgroundColor: "#2d5016",
-    borderRadius: 12,
-    paddingVertical: 16,
+
+  primaryButton: {
+    backgroundColor: colors.forest,
+    borderRadius: radius.md,
+    paddingVertical: 14,
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
-  photoButtonSecondary: {
-    backgroundColor: "#fff",
+  primaryButtonText: {
+    color: "#fff",
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 15,
+  },
+  secondaryButton: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#2d5016",
-  },
-  photoButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  photoButtonTextSecondary: {
-    color: "#2d5016",
-  },
-  saveButton: {
-    backgroundColor: "#2d5016",
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderColor: colors.sageBorder,
+    borderRadius: radius.md,
+    paddingVertical: 14,
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+  secondaryButtonText: {
+    color: colors.forest,
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 15,
   },
   cancelButton: {
-    paddingVertical: 16,
+    paddingVertical: spacing.base,
     alignItems: "center",
   },
   cancelButtonText: {
-    color: "#c0392b",
-    fontSize: 16,
+    color: colors.muted,
+    fontFamily: fonts.hankenRegular,
+    fontSize: 14,
   },
 });
