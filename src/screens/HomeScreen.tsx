@@ -29,6 +29,7 @@ import {
 } from "../lib/theme";
 import { StatusBadge } from "../components/StatusBadge";
 import { EyebrowLabel } from "../components/EyebrowLabel";
+import { BreathingMark } from "../components/BreathingMark";
 import type { Plant, WateringStatus, WeatherData } from "../types";
 
 type Props = {
@@ -184,8 +185,8 @@ export default function HomeScreen({ session, navigation }: Props) {
     }
     if (!weather) {
       return (
-        <View style={styles.bridgeCard}>
-          <ActivityIndicator size="small" color={colors.fern} />
+        <View style={[styles.bridgeCard, styles.bridgeCardLoading]}>
+          <BreathingMark size={32} color={colors.fern} />
         </View>
       );
     }
@@ -458,6 +459,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.base,
     marginBottom: spacing.md,
+  },
+  bridgeCardLoading: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 72,
   },
   bridgeSentence: {
     fontFamily: fonts.spectralRegular,

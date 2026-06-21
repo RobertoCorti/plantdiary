@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -24,6 +23,7 @@ import {
 } from "../lib/theme";
 import { ConfidenceBar } from "../components/ConfidenceBar";
 import { EyebrowLabel } from "../components/EyebrowLabel";
+import { BreathingMark } from "../components/BreathingMark";
 import type { AIIdentificationResult } from "../types";
 
 type Props = {
@@ -181,7 +181,7 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
   if (step === "identifying" || step === "saving") {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.forest} />
+        <BreathingMark size={64} color={colors.forest} />
         <Text style={styles.loadingText}>
           {step === "identifying"
             ? "Identifying your plant…"

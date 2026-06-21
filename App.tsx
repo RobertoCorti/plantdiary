@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import {
   createNativeStackNavigator,
   NativeStackScreenProps,
 } from "@react-navigation/native-stack";
 import { Session } from "@supabase/supabase-js";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import {
@@ -28,7 +28,9 @@ import {
 import { supabase } from "./src/lib/supabase";
 import { registerForPushNotifications } from "./src/lib/notifications";
 import { log } from "./src/lib/logger";
-import { colors, fonts as fontFamilies } from "./src/lib/theme";
+import { colors } from "./src/lib/theme";
+import { BreathingMark } from "./src/components/BreathingMark";
+import { SplashReveal } from "./src/components/SplashReveal";
 import AuthScreen from "./src/screens/AuthScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import AddPlantScreen from "./src/screens/AddPlantScreen";
@@ -52,6 +54,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [revealDone, setRevealDone] = useState(false);
   const [fontsLoaded, fontError] = useFonts({
     Spectral_400Regular,
     Spectral_500Medium,
@@ -69,13 +72,15 @@ export default function App() {
     if (fontError) log.error("app", "Font load failed", fontError.message);
   }, [fontError]);
 
-  const ready = !loading && (fontsLoaded || !!fontError);
+  const fontsReady = fontsLoaded || !!fontError;
 
-  const onLayoutRootView = useCallback(async () => {
-    if (ready) {
-      await SplashScreen.hideAsync().catch(() => {});
+  // Hide the native splash as soon as fonts are ready so SplashReveal can take
+  // over without a freeze on the native splash image.
+  useEffect(() => {
+    if (fontsReady) {
+      SplashScreen.hideAsync().catch(() => {});
     }
-  }, [ready]);
+  }, [fontsReady]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -112,17 +117,25 @@ export default function App() {
     });
   }, [session]);
 
-  if (!ready) {
+  // Native splash holds while fonts download.
+  if (!fontsReady) return null;
+
+  // SplashReveal: cream frond strokes onto forest, then wordmark settles in.
+  if (!revealDone) {
+    return <SplashReveal onDone={() => setRevealDone(true)} />;
+  }
+
+  // Splash finished before auth resolved — calm holding state.
+  if (loading) {
     return (
-      <View style={styles.splash} onLayout={onLayoutRootView}>
-        <Text style={styles.splashTitle}>PlantDiary</Text>
-        <ActivityIndicator size="large" color={colors.forest} style={{ marginTop: 16 }} />
+      <View style={styles.splash}>
+        <BreathingMark size={64} color={colors.forest} />
       </View>
     );
   }
 
   return (
-    <NavigationContainer onReady={onLayoutRootView}>
+    <NavigationContainer>
       <StatusBar style="dark" />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session ? (
@@ -173,10 +186,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper,
     justifyContent: "center",
     alignItems: "center",
-  },
-  splashTitle: {
-    fontFamily: fontFamilies.spectralMedium,
-    fontSize: 36,
-    color: colors.forest,
   },
 });

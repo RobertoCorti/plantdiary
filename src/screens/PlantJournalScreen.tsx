@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -23,6 +22,7 @@ import {
 } from "../lib/theme";
 import { EyebrowLabel } from "../components/EyebrowLabel";
 import { EventIcon, iconForMilestone } from "../components/EventIcon";
+import { BreathingMark } from "../components/BreathingMark";
 import type { Milestone, Plant, PlantEvent } from "../types";
 import type { RootStackParamList } from "../../App";
 
@@ -101,7 +101,7 @@ export default function PlantJournalScreen({
   if (loading || !plant || !stats) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.forest} />
+        <BreathingMark size={64} color={colors.forest} />
       </View>
     );
   }

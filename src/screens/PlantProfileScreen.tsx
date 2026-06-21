@@ -34,6 +34,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { ConfidenceBar } from "../components/ConfidenceBar";
 import { EventIcon, iconForEvent } from "../components/EventIcon";
 import { EyebrowLabel } from "../components/EyebrowLabel";
+import { BreathingMark } from "../components/BreathingMark";
 import type {
   AIPhotoAnalysisResult,
   FrequencyProposal,
@@ -447,7 +448,7 @@ export default function PlantProfileScreen({
   if (loading || !plant) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.forest} />
+        <BreathingMark size={64} color={colors.forest} />
       </View>
     );
   }
@@ -455,7 +456,7 @@ export default function PlantProfileScreen({
   if (analyzing) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.forest} />
+        <BreathingMark size={64} color={colors.forest} />
         <Text style={styles.analyzingText}>Analyzing your plant…</Text>
       </View>
     );
