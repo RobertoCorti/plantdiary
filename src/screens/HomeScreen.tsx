@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -16,29 +16,24 @@ import type { RootStackParamList } from "../../App";
 import * as Location from "expo-location";
 import { supabase } from "../lib/supabase";
 import { getWateringStatus, daysSinceWatered } from "../lib/watering";
-import { fetchWeather } from "../lib/weather";
+import { careBridgeSentence, fetchWeather } from "../lib/weather";
 import { logWatering } from "../lib/events";
 import { log } from "../lib/logger";
+import {
+  colors,
+  fonts,
+  radius,
+  spacing,
+  STATUS,
+  typography,
+} from "../lib/theme";
+import { StatusBadge } from "../components/StatusBadge";
+import { EyebrowLabel } from "../components/EyebrowLabel";
 import type { Plant, WateringStatus, WeatherData } from "../types";
 
 type Props = {
   session: Session;
   navigation: NativeStackNavigationProp<RootStackParamList, "Home">;
-};
-
-const STATUS_ORDER: Record<WateringStatus, number> = {
-  water_today: 0,
-  check: 1,
-  ok: 2,
-};
-
-const STATUS_CONFIG: Record<
-  WateringStatus,
-  { label: string; bg: string; text: string }
-> = {
-  water_today: { label: "Water today", bg: "#fdecea", text: "#c0392b" },
-  check: { label: "Check", bg: "#fff8e1", text: "#f39c12" },
-  ok: { label: "OK", bg: "#e8f5e9", text: "#2d5016" },
 };
 
 function formatTodayHeader(): string {
@@ -55,7 +50,7 @@ export default function HomeScreen({ session, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherError, setWeatherError] = useState<string | null>(null);
-  const [wateringPlantId, setWateringPlantId] = useState<string | null>(null);
+  const [wateringIds, setWateringIds] = useState<Set<string>>(new Set());
   const [fetchError, setFetchError] = useState<string | null>(null);
   const isFocused = useIsFocused();
 
@@ -87,9 +82,6 @@ export default function HomeScreen({ session, navigation }: Props) {
       }
       const location = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
-      // Persist last-known coords so the server-side advisor cron (N3) can fetch
-      // a forecast. Fire-and-forget; merges into the profile without clobbering
-      // push_token. Weather display must not depend on this succeeding.
       supabase
         .from("profiles")
         .upsert({
@@ -116,17 +108,27 @@ export default function HomeScreen({ session, navigation }: Props) {
     }
   }, [isFocused, fetchPlants, loadWeather]);
 
-  const sortedPlants = useMemo(() => {
-    return [...plants].sort((a, b) => {
-      const statusA = getWateringStatus(a);
-      const statusB = getWateringStatus(b);
-      return STATUS_ORDER[statusA] - STATUS_ORDER[statusB];
-    });
+  const grouped = useMemo(() => {
+    const buckets: Record<WateringStatus, Plant[]> = {
+      water_today: [],
+      check: [],
+      ok: [],
+    };
+    for (const p of plants) {
+      buckets[getWateringStatus(p)].push(p);
+    }
+    return buckets;
   }, [plants]);
 
+  const attentionPlants = useMemo(
+    () => [...grouped.water_today, ...grouped.check],
+    [grouped]
+  );
+  const thrivingPlants = grouped.ok;
+  const waterTodayCount = grouped.water_today.length;
+
   async function handleWater(plant: Plant) {
-    setWateringPlantId(plant.id);
-    // Optimistic update
+    setWateringIds((prev) => new Set(prev).add(plant.id));
     const now = new Date().toISOString();
     setPlants((prev) =>
       prev.map((p) => (p.id === plant.id ? { ...p, last_watered_at: now } : p))
@@ -137,165 +139,276 @@ export default function HomeScreen({ session, navigation }: Props) {
       Alert.alert("Watering Failed", "Could not log watering. Please try again.");
       fetchPlants();
     } finally {
-      setWateringPlantId(null);
+      setWateringIds((prev) => {
+        const next = new Set(prev);
+        next.delete(plant.id);
+        return next;
+      });
     }
   }
 
-  function renderWeatherWidget() {
+  async function handleWaterAll() {
+    const targets = grouped.water_today;
+    if (targets.length === 0) return;
+    const ids = new Set(targets.map((p) => p.id));
+    setWateringIds((prev) => new Set([...prev, ...ids]));
+    const now = new Date().toISOString();
+    setPlants((prev) =>
+      prev.map((p) => (ids.has(p.id) ? { ...p, last_watered_at: now } : p))
+    );
+    const results = await Promise.allSettled(
+      targets.map((p) => logWatering(supabase, p.id, session.user.id))
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    setWateringIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
+    if (failed > 0) {
+      Alert.alert(
+        "Some waterings failed",
+        `${failed} of ${targets.length} could not be logged. Refreshing.`
+      );
+      fetchPlants();
+    }
+  }
+
+  function renderCareBridge() {
     if (weatherError) {
       return (
-        <View style={styles.weatherWidget}>
-          <Text style={styles.weatherErrorText}>{weatherError}</Text>
+        <View style={styles.bridgeCard}>
+          <Text style={styles.bridgeMuted}>{weatherError}</Text>
         </View>
       );
     }
     if (!weather) {
       return (
-        <View style={styles.weatherWidget}>
-          <ActivityIndicator size="small" color="#2d5016" />
+        <View style={styles.bridgeCard}>
+          <ActivityIndicator size="small" color={colors.fern} />
         </View>
       );
     }
     return (
-      <View style={styles.weatherWidget}>
-        <View style={styles.weatherRow}>
-          <View style={styles.weatherItem}>
-            <Text style={styles.weatherValue}>
-              {Math.round(weather.temperature)}°C
-            </Text>
-            <Text style={styles.weatherLabel}>Temperature</Text>
-          </View>
-          <View style={styles.weatherItem}>
-            <Text style={styles.weatherValue}>{weather.humidity}%</Text>
-            <Text style={styles.weatherLabel}>Humidity</Text>
-          </View>
-          <View style={styles.weatherItem}>
-            <Text style={styles.weatherValue}>
-              {weather.precipitation} mm
-            </Text>
-            <Text style={styles.weatherLabel}>Precipitation</Text>
-          </View>
+      <View style={styles.bridgeCard}>
+        <Text style={styles.bridgeSentence}>{careBridgeSentence(weather)}</Text>
+        <View style={styles.bridgeStatsRow}>
+          <BridgeStat value={`${Math.round(weather.temperature)}°`} label="temp" />
+          <BridgeStat value={`${Math.round(weather.humidity)}%`} label="humidity" />
+          <BridgeStat value={`${weather.precipitation} mm`} label="rain" />
         </View>
       </View>
     );
   }
 
-  function renderPlantCard({ item }: { item: Plant }) {
-    const status = getWateringStatus(item);
-    const config = STATUS_CONFIG[status];
-    const days = daysSinceWatered(item);
-    const isWatering = wateringPlantId === item.id;
+  function renderSummaryStrip() {
+    if (plants.length === 0) return null;
+    const pills: Array<{ status: WateringStatus; label: string }> = [];
+    if (grouped.water_today.length > 0)
+      pills.push({
+        status: "water_today",
+        label: `${grouped.water_today.length} to water`,
+      });
+    if (grouped.check.length > 0)
+      pills.push({
+        status: "check",
+        label: `${grouped.check.length} to check`,
+      });
+    if (thrivingPlants.length > 0)
+      pills.push({
+        status: "ok",
+        label: `${thrivingPlants.length} thriving`,
+      });
+    if (pills.length === 0) return null;
+    return (
+      <View style={styles.summaryStrip}>
+        {pills.map((p) => (
+          <StatusBadge key={p.status} status={p.status} label={p.label} />
+        ))}
+      </View>
+    );
+  }
+
+  function renderAttentionCard(plant: Plant) {
+    const status = getWateringStatus(plant);
+    const tone = STATUS[status];
+    const days = daysSinceWatered(plant);
+    const isWatering = wateringIds.has(plant.id);
 
     return (
       <Pressable
-        style={styles.card}
-        onPress={() =>
-          navigation.navigate("PlantProfile", { plantId: item.id })
-        }
+        key={plant.id}
+        style={[styles.attentionCard, { borderLeftColor: tone.dot }]}
+        onPress={() => navigation.navigate("PlantProfile", { plantId: plant.id })}
       >
-        {item.photo_url ? (
-          <Image source={{ uri: item.photo_url }} style={styles.cardImage} />
+        {plant.photo_url ? (
+          <Image source={{ uri: plant.photo_url }} style={styles.attentionImage} />
         ) : (
-          <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
-            <Text style={styles.cardImagePlaceholderText}>🌱</Text>
+          <View style={[styles.attentionImage, styles.imagePlaceholder]}>
+            <Text style={styles.imagePlaceholderText}>🌱</Text>
           </View>
         )}
-        <View style={styles.cardInfo}>
-          <View style={styles.cardTopRow}>
+        <View style={styles.attentionInfo}>
+          <View style={styles.attentionTopRow}>
             <Text style={styles.cardName} numberOfLines={1}>
-              {item.name}
+              {plant.name}
             </Text>
-            <View style={[styles.statusBadge, { backgroundColor: config.bg }]}>
-              <Text style={[styles.statusText, { color: config.text }]}>
-                {config.label}
-              </Text>
-            </View>
+            <StatusBadge status={status} />
           </View>
-          {item.species && (
+          {plant.species && (
             <Text style={styles.cardSpecies} numberOfLines={1}>
-              {item.species}
+              {plant.species}
             </Text>
           )}
           <Text style={styles.cardWatered}>
             {days !== null ? `Last watered ${days}d ago` : "Never watered"}
           </Text>
         </View>
-        {status !== "ok" && (
-          <Pressable
-            style={[styles.waterButton, isWatering && styles.waterButtonDisabled]}
-            onPress={() => !isWatering && handleWater(item)}
-            disabled={isWatering}
-          >
-            {isWatering ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.waterButtonText}>Water</Text>
-            )}
-          </Pressable>
-        )}
+        <Pressable
+          style={[styles.waterButton, isWatering && styles.waterButtonDisabled]}
+          onPress={() => !isWatering && handleWater(plant)}
+          disabled={isWatering}
+          hitSlop={8}
+        >
+          {isWatering ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.waterButtonText}>Water</Text>
+          )}
+        </Pressable>
       </Pressable>
     );
   }
 
+  function renderThrivingCard(plant: Plant) {
+    const days = daysSinceWatered(plant);
+    return (
+      <Pressable
+        key={plant.id}
+        style={styles.thrivingCard}
+        onPress={() => navigation.navigate("PlantProfile", { plantId: plant.id })}
+      >
+        {plant.photo_url ? (
+          <Image source={{ uri: plant.photo_url }} style={styles.thrivingImage} />
+        ) : (
+          <View style={[styles.thrivingImage, styles.imagePlaceholder]}>
+            <Text style={styles.imagePlaceholderText}>🌱</Text>
+          </View>
+        )}
+        <View style={styles.thrivingInfo}>
+          <Text style={styles.thrivingName} numberOfLines={1}>
+            {plant.name}
+          </Text>
+          {plant.species && (
+            <Text style={styles.cardSpecies} numberOfLines={1}>
+              {plant.species}
+            </Text>
+          )}
+          <Text style={styles.cardWatered}>
+            {days !== null ? `Watered ${days}d ago` : "Never watered"}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  const showEmpty = plants.length === 0 && !loading && !fetchError;
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Today</Text>
-          <Text style={styles.dateSubtitle}>{formatTodayHeader()}</Text>
-        </View>
-        <Pressable
-          style={styles.addButton}
-          onPress={() => navigation.navigate("AddPlant")}
-        >
-          <Text style={styles.addButtonText}>+ Add Plant</Text>
-        </Pressable>
-      </View>
-
-      {renderWeatherWidget()}
-
-      {fetchError ? (
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>{fetchError}</Text>
-          <Pressable style={styles.retryButton} onPress={fetchPlants}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </Pressable>
-        </View>
-      ) : plants.length === 0 && !loading ? (
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderEmoji}>🌿</Text>
-          <Text style={styles.placeholderTitle}>Welcome to PlantDiary</Text>
-          <Text style={styles.placeholderText}>
-            Take a photo of a plant and we'll identify it for you.
-          </Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Today</Text>
+            <Text style={styles.dateSubtitle}>{formatTodayHeader()}</Text>
+          </View>
           <Pressable
-            style={styles.emptyAddButton}
+            style={styles.addButton}
             onPress={() => navigation.navigate("AddPlant")}
           >
-            <Text style={styles.emptyAddButtonText}>Add Your First Plant</Text>
+            <Text style={styles.addButtonText}>+ Plant</Text>
           </Pressable>
         </View>
-      ) : (
-        <FlatList
-          data={sortedPlants}
-          renderItem={renderPlantCard}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
 
-      <Pressable
-        style={styles.logoutButton}
-        onPress={() =>
-          Alert.alert("Log Out", "Are you sure you want to log out?", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Log Out", style: "destructive", onPress: () => supabase.auth.signOut() },
-          ])
-        }
-      >
-        <Text style={styles.logoutText}>Log Out</Text>
-      </Pressable>
+        {renderCareBridge()}
+        {renderSummaryStrip()}
+
+        {fetchError ? (
+          <View style={styles.placeholder}>
+            <Text style={styles.placeholderText}>{fetchError}</Text>
+            <Pressable style={styles.retryButton} onPress={fetchPlants}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : showEmpty ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Welcome to PlantDiary</Text>
+            <Text style={styles.emptyText}>
+              Take a photo of a plant and we'll identify it for you.
+            </Text>
+            <Pressable
+              style={styles.emptyAddButton}
+              onPress={() => navigation.navigate("AddPlant")}
+            >
+              <Text style={styles.emptyAddButtonText}>Add your first plant</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            {attentionPlants.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <EyebrowLabel>Needs attention</EyebrowLabel>
+                  {waterTodayCount >= 2 && (
+                    <Pressable onPress={handleWaterAll} hitSlop={8}>
+                      <Text style={styles.sectionAction}>
+                        Water all ({waterTodayCount})
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+                {attentionPlants.map(renderAttentionCard)}
+              </>
+            )}
+            {thrivingPlants.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <EyebrowLabel>All good</EyebrowLabel>
+                </View>
+                {thrivingPlants.map(renderThrivingCard)}
+              </>
+            )}
+          </>
+        )}
+
+        <Pressable
+          style={styles.logoutButton}
+          onPress={() =>
+            Alert.alert("Log out", "Are you sure you want to log out?", [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Log out",
+                style: "destructive",
+                onPress: () => supabase.auth.signOut(),
+              },
+            ])
+          }
+        >
+          <Text style={styles.logoutText}>Log out</Text>
+        </Pressable>
+      </ScrollView>
+    </View>
+  );
+}
+
+function BridgeStat({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={styles.bridgeStat}>
+      <Text style={styles.bridgeStatValue}>{value}</Text>
+      <Text style={styles.bridgeStatLabel}>{label}</Text>
     </View>
   );
 }
@@ -303,194 +416,259 @@ export default function HomeScreen({ session, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8faf5",
-    paddingHorizontal: 24,
-    paddingTop: 80,
+    backgroundColor: colors.paper,
+  },
+  scroll: {
+    paddingHorizontal: spacing.gutter,
+    paddingTop: 72,
+    paddingBottom: spacing.xl,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   greeting: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#2d5016",
+    ...typography.display,
+    color: colors.ink,
   },
   dateSubtitle: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 14,
-    color: "#888",
+    color: colors.muted,
     marginTop: 2,
   },
   addButton: {
-    backgroundColor: "#2d5016",
-    borderRadius: 10,
-    paddingHorizontal: 16,
+    backgroundColor: colors.forest,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.base,
     paddingVertical: 10,
   },
   addButtonText: {
     color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  weatherWidget: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#e0e8d8",
-  },
-  weatherRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  weatherItem: {
-    alignItems: "center",
-  },
-  weatherValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#2d5016",
-  },
-  weatherLabel: {
-    fontSize: 11,
-    color: "#888",
-    marginTop: 2,
-  },
-  weatherErrorText: {
+    fontFamily: fonts.hankenSemiBold,
     fontSize: 13,
-    color: "#888",
-    textAlign: "center",
   },
-  placeholder: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  placeholderEmoji: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  placeholderTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#2d5016",
-    marginBottom: 8,
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: "#888",
-    textAlign: "center",
-    paddingHorizontal: 32,
-    marginBottom: 24,
-  },
-  emptyAddButton: {
-    backgroundColor: "#2d5016",
-    borderRadius: 12,
-    paddingHorizontal: 28,
-    paddingVertical: 16,
-  },
-  emptyAddButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  retryButton: {
-    backgroundColor: "#2d5016",
-    borderRadius: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  retryButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  list: {
-    paddingBottom: 20,
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    flexDirection: "row",
-    padding: 12,
-    marginBottom: 12,
+
+  bridgeCard: {
+    backgroundColor: colors.mist,
     borderWidth: 1,
-    borderColor: "#e0e8d8",
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.md,
+  },
+  bridgeSentence: {
+    fontFamily: fonts.spectralRegular,
+    fontSize: 16,
+    lineHeight: 22,
+    color: colors.ink,
+  },
+  bridgeMuted: {
+    fontFamily: fonts.hankenRegular,
+    fontSize: 13,
+    color: colors.muted,
+    textAlign: "center",
+  },
+  bridgeStatsRow: {
+    flexDirection: "row",
+    gap: spacing.lg,
+    marginTop: spacing.md,
+  },
+  bridgeStat: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+  },
+  bridgeStatValue: {
+    fontFamily: fonts.monoMedium,
+    fontSize: 14,
+    color: colors.ink,
+  },
+  bridgeStatLabel: {
+    fontFamily: fonts.hankenRegular,
+    fontSize: 11,
+    color: colors.muted,
+  },
+
+  summaryStrip: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  sectionAction: {
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 13,
+    color: colors.forest,
+  },
+
+  attentionCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderLeftWidth: 3,
+    borderRadius: radius.lg,
+    flexDirection: "row",
+    padding: spacing.md,
+    marginBottom: spacing.md,
     alignItems: "center",
   },
-  cardImage: {
+  attentionImage: {
     width: 72,
     height: 72,
-    borderRadius: 12,
+    borderRadius: radius.md,
   },
-  cardImagePlaceholder: {
-    backgroundColor: "#f0f5eb",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cardImagePlaceholderText: {
-    fontSize: 28,
-  },
-  cardInfo: {
+  attentionInfo: {
     flex: 1,
     marginLeft: 14,
     justifyContent: "center",
+    gap: 2,
   },
-  cardTopRow: {
+  attentionTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: spacing.sm,
+    marginBottom: 2,
   },
   cardName: {
+    fontFamily: fonts.spectralSemiBold,
     fontSize: 18,
-    fontWeight: "600",
-    color: "#2d5016",
+    color: colors.ink,
     flexShrink: 1,
   },
-  statusBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
   cardSpecies: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 13,
-    color: "#666",
-    marginTop: 2,
+    color: colors.bark,
   },
   cardWatered: {
-    fontSize: 12,
-    color: "#999",
+    fontFamily: fonts.monoRegular,
+    fontSize: 11,
+    color: colors.muted,
     marginTop: 2,
   },
   waterButton: {
-    backgroundColor: "#4a90d9",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginLeft: 8,
+    backgroundColor: colors.rain,
+    borderRadius: radius.md,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginLeft: spacing.sm,
   },
   waterButtonDisabled: {
     opacity: 0.6,
   },
   waterButtonText: {
     color: "#fff",
+    fontFamily: fonts.hankenSemiBold,
     fontSize: 13,
-    fontWeight: "600",
   },
-  logoutButton: {
-    paddingVertical: 16,
+
+  thrivingCard: {
+    backgroundColor: colors.mist,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    flexDirection: "row",
+    padding: spacing.sm + 2,
+    marginBottom: spacing.sm,
     alignItems: "center",
-    marginBottom: 40,
+  },
+  thrivingImage: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+  },
+  thrivingInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+    gap: 1,
+  },
+  thrivingName: {
+    fontFamily: fonts.spectralSemiBold,
+    fontSize: 16,
+    color: colors.ink,
+  },
+
+  imagePlaceholder: {
+    backgroundColor: colors.wash,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imagePlaceholderText: {
+    fontSize: 24,
+  },
+
+  placeholder: {
+    paddingVertical: spacing.xxl,
+    alignItems: "center",
+  },
+  placeholderText: {
+    fontFamily: fonts.hankenRegular,
+    fontSize: 14,
+    color: colors.bark,
+    textAlign: "center",
+    marginBottom: spacing.base,
+  },
+  retryButton: {
+    backgroundColor: colors.forest,
+    borderRadius: radius.md,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 13,
+  },
+
+  emptyState: {
+    paddingVertical: spacing.xxl,
+    alignItems: "center",
+  },
+  emptyTitle: {
+    ...typography.title,
+    color: colors.ink,
+    marginBottom: spacing.sm,
+  },
+  emptyText: {
+    fontFamily: fonts.hankenRegular,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.bark,
+    textAlign: "center",
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.gutter,
+  },
+  emptyAddButton: {
+    backgroundColor: colors.forest,
+    borderRadius: radius.md,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+  },
+  emptyAddButtonText: {
+    color: "#fff",
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 15,
+  },
+
+  logoutButton: {
+    paddingVertical: spacing.base,
+    alignItems: "center",
+    marginTop: spacing.lg,
   },
   logoutText: {
-    color: "#c0392b",
-    fontSize: 16,
+    fontFamily: fonts.hankenRegular,
+    fontSize: 14,
+    color: colors.muted,
   },
 });
