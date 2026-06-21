@@ -22,12 +22,8 @@ import {
   typography,
 } from "../lib/theme";
 import { EyebrowLabel } from "../components/EyebrowLabel";
-import type {
-  Milestone,
-  MilestoneKind,
-  Plant,
-  PlantEvent,
-} from "../types";
+import { EventIcon, iconForMilestone } from "../components/EventIcon";
+import type { Milestone, Plant, PlantEvent } from "../types";
 import type { RootStackParamList } from "../../App";
 
 type Props = {
@@ -38,16 +34,6 @@ type Props = {
 
 const THUMB_SIZE = 132;
 const THUMB_GAP = 10;
-
-const MILESTONE_TINT: Record<MilestoneKind, string> = {
-  anniversary: colors.wash,
-  watering: colors.eventBgWatered,
-  feeding: colors.eventBgFertilized,
-  repot: colors.eventBgRepotted,
-  photo: colors.eventBgPhoto,
-  schedule: colors.eventBgFrequency,
-  scare: colors.thrivingBg,
-};
 
 function shortDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", {
@@ -222,14 +208,7 @@ function Divider() {
 function MilestoneRow({ milestone }: { milestone: Milestone }) {
   return (
     <View style={styles.milestoneRow}>
-      <View
-        style={[
-          styles.milestoneCircle,
-          { backgroundColor: MILESTONE_TINT[milestone.kind] },
-        ]}
-      >
-        <Text style={styles.milestoneGlyph}>{milestone.icon}</Text>
-      </View>
+      <EventIcon type={iconForMilestone(milestone.kind)} size={40} />
       <View style={styles.milestoneBody}>
         <Text style={styles.milestoneTitle}>{milestone.title}</Text>
         {milestone.detail ? (
@@ -407,16 +386,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.base - 2,
     marginBottom: spacing.sm,
-  },
-  milestoneCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  milestoneGlyph: {
-    fontSize: 20,
   },
   milestoneBody: {
     flex: 1,

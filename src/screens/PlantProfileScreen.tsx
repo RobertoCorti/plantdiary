@@ -32,7 +32,7 @@ import {
 } from "../lib/theme";
 import { StatusBadge } from "../components/StatusBadge";
 import { ConfidenceBar } from "../components/ConfidenceBar";
-import { EventIcon } from "../components/EventIcon";
+import { EventIcon, iconForEvent } from "../components/EventIcon";
 import { EyebrowLabel } from "../components/EyebrowLabel";
 import type {
   AIPhotoAnalysisResult,
@@ -726,7 +726,7 @@ export default function PlantProfileScreen({
                     ]}
                     onPress={() => setSelectedEventType(type)}
                   >
-                    <EventIcon type={type} size={32} />
+                    <EventIcon type={iconForEvent(type)} size={36} />
                     <Text
                       style={[
                         styles.typeOptionLabel,
@@ -858,7 +858,7 @@ function EventRow({
   const analysis = parseAnalysis(event.ai_analysis);
   return (
     <View style={styles.eventRow}>
-      <EventIcon type={event.event_type} />
+      <EventIcon type={iconForEvent(event.event_type)} size={40} />
       <View style={styles.eventContent}>
         <View style={styles.eventHeader}>
           <Text style={styles.eventType}>{EVENT_LABELS[event.event_type]}</Text>

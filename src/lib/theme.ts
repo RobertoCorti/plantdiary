@@ -162,3 +162,31 @@ export const CONFIDENCE: Record<ConfidenceLevel, ConfidenceTone> = {
   medium: { bar: colors.confidenceModFill, label: colors.confidenceModLabel, word: "moderate" },
   high: { bar: colors.confidenceHighFill, label: colors.confidenceHighLabel, word: "high" },
 };
+
+// Loam event-icon palette. Each icon = a stroked glyph on a tinted circle,
+// keyed by semantic name (not PlantEvent.event_type — events.watered maps to
+// "water", events.frequency_updated to "schedule", etc). milestone and note
+// aren't real event types — they're used by the journal milestone list and
+// generic note markers.
+export type EventIconName =
+  | "water"
+  | "photo"
+  | "fertilize"
+  | "observation"
+  | "repot"
+  | "schedule"
+  | "milestone"
+  | "note";
+
+export type EventIconTone = { bg: string; stroke: string };
+
+export const EVENT_ICON: Record<EventIconName, EventIconTone> = {
+  water: { bg: colors.eventBgWatered, stroke: colors.rain },
+  photo: { bg: colors.eventBgPhoto, stroke: colors.fern },
+  fertilize: { bg: colors.eventBgFertilized, stroke: colors.checkDot },
+  observation: { bg: colors.eventBgObservation, stroke: colors.fern },
+  repot: { bg: colors.eventBgRepotted, stroke: colors.waterTodayDot },
+  schedule: { bg: colors.eventBgFrequency, stroke: colors.forest },
+  milestone: { bg: colors.thrivingBg, stroke: colors.fern },
+  note: { bg: colors.eventBgObservation, stroke: colors.fern },
+};
