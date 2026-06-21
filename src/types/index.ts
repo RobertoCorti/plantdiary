@@ -62,9 +62,19 @@ export type AIPhotoAnalysisResult = {
 };
 
 // N4 — Plant Journal. Auto-detected from existing plant_events; no AI, no DB.
+export type MilestoneKind =
+  | "anniversary"
+  | "watering"
+  | "feeding"
+  | "repot"
+  | "photo"
+  | "schedule"
+  | "scare";
+
 export type Milestone = {
   id: string; // stable key for list rendering
-  icon: string; // emoji
+  kind: MilestoneKind; // drives the colored-circle tint in the journal
+  icon: string; // emoji glyph rendered inside the circle
   title: string;
   detail: string | null;
   date: string; // ISO timestamp of when the milestone occurred

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Image,
   Pressable,
   ScrollView,
@@ -15,7 +14,20 @@ import { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { fetchPlantEvents } from "../lib/events";
 import { computeJournalStats, computeMilestones } from "../lib/journal";
-import type { Plant, PlantEvent } from "../types";
+import {
+  colors,
+  fonts,
+  radius,
+  spacing,
+  typography,
+} from "../lib/theme";
+import { EyebrowLabel } from "../components/EyebrowLabel";
+import type {
+  Milestone,
+  MilestoneKind,
+  Plant,
+  PlantEvent,
+} from "../types";
 import type { RootStackParamList } from "../../App";
 
 type Props = {
@@ -24,16 +36,29 @@ type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, "PlantJournal">;
 };
 
-const GUTTER = 24;
-const GALLERY_GAP = 6;
-const GALLERY_COLS = 3;
-const thumbSize =
-  (Dimensions.get("window").width - GUTTER * 2 - GALLERY_GAP * (GALLERY_COLS - 1)) /
-  GALLERY_COLS;
+const THUMB_SIZE = 132;
+const THUMB_GAP = 10;
 
-function formatMonthDay(dateStr: string): string {
+const MILESTONE_TINT: Record<MilestoneKind, string> = {
+  anniversary: colors.wash,
+  watering: colors.eventBgWatered,
+  feeding: colors.eventBgFertilized,
+  repot: colors.eventBgRepotted,
+  photo: colors.eventBgPhoto,
+  schedule: colors.eventBgFrequency,
+  scare: colors.thrivingBg,
+};
+
+function shortDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", {
     month: "short",
+    day: "numeric",
+  });
+}
+
+function fullDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "long",
     day: "numeric",
     year: "numeric",
   });
@@ -77,14 +102,20 @@ export default function PlantJournalScreen({
   );
   const photos = useMemo(
     () =>
-      events.filter((e) => e.photo_url).map((e) => ({ id: e.id, uri: e.photo_url! })),
+      events
+        .filter((e) => e.photo_url)
+        .map((e) => ({
+          id: e.id,
+          uri: e.photo_url!,
+          date: e.created_at,
+        })),
     [events]
   );
 
   if (loading || !plant || !stats) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2d5016" />
+        <ActivityIndicator size="large" color={colors.forest} />
       </View>
     );
   }
@@ -92,11 +123,15 @@ export default function PlantJournalScreen({
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>← Back</Text>
+        <Pressable
+          style={styles.iconButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={8}
+        >
+          <Text style={styles.iconButtonText}>←</Text>
         </Pressable>
         <Text style={styles.topTitle}>Journal</Text>
-        <View style={styles.backButtonSpacer} />
+        <View style={styles.iconButtonSpacer} />
       </View>
 
       <ScrollView
@@ -104,75 +139,104 @@ export default function PlantJournalScreen({
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.plantName}>{plant.name}</Text>
+        <Text style={styles.tenureLine}>
+          {stats.daysWithPlant} {stats.daysWithPlant === 1 ? "day" : "days"}{" "}
+          together · since {fullDate(plant.created_at)}
+        </Text>
 
-        {/* Stats summary */}
-        <View style={styles.statsCard}>
-          <Text style={styles.statsHeadline}>
-            {stats.daysWithPlant} {stats.daysWithPlant === 1 ? "day" : "days"} with{" "}
-            {plant.name}
+        <View style={styles.narrativeCard}>
+          <EyebrowLabel>This month</EyebrowLabel>
+          <Text style={styles.narrativeBody}>
+            Monthly narratives will appear here once {plant.name} has a full
+            month of events to draw from. A short, calm summary — what changed,
+            what stayed steady.
           </Text>
-          <View style={styles.statsRow}>
-            <Stat value={stats.waterings} label="waterings" />
-            <Stat value={stats.fertilizings} label="feedings" />
-            <Stat value={stats.photos} label="photos" />
-            {stats.scaresSurvived > 0 ? (
-              <Stat
-                value={stats.scaresSurvived}
-                label={stats.scaresSurvived === 1 ? "scare survived" : "scares survived"}
-              />
-            ) : null}
-          </View>
         </View>
 
-        {/* Photo gallery */}
-        <Text style={styles.sectionTitle}>Photos</Text>
+        <View style={styles.statsRow}>
+          <StatCell value={stats.waterings} label="waterings" />
+          <Divider />
+          <StatCell value={stats.fertilizings} label="feedings" />
+          <Divider />
+          <StatCell value={stats.photos} label="photos" />
+          <Divider />
+          <StatCell
+            value={stats.scaresSurvived}
+            label={stats.scaresSurvived === 1 ? "recovery" : "recoveries"}
+          />
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <EyebrowLabel>Photos</EyebrowLabel>
+        </View>
         {photos.length === 0 ? (
           <Text style={styles.emptyText}>
-            No photos yet. Photo check-ins from the profile show up here.
+            No photos yet. Check-ins from the profile show up here.
           </Text>
         ) : (
-          <View style={styles.gallery}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.photoStrip}
+          >
             {photos.map((p) => (
-              <Image
-                key={p.id}
-                source={{ uri: p.uri }}
-                style={[styles.thumb, { width: thumbSize, height: thumbSize }]}
-              />
+              <View key={p.id} style={styles.photoTile}>
+                <Image source={{ uri: p.uri }} style={styles.photoImage} />
+                <View style={styles.photoDateBadge}>
+                  <Text style={styles.photoDateText}>{shortDate(p.date)}</Text>
+                </View>
+              </View>
             ))}
-          </View>
+          </ScrollView>
         )}
 
-        {/* Milestone feed */}
-        <Text style={styles.sectionTitle}>Milestones</Text>
+        <View style={styles.sectionHeader}>
+          <EyebrowLabel>Milestones</EyebrowLabel>
+        </View>
         {milestones.length === 0 ? (
           <Text style={styles.emptyText}>
             Milestones appear as {plant.name} grows — anniversaries, watering
-            counts, learned schedules and more.
+            counts, learned schedules, and more.
           </Text>
         ) : (
-          milestones.map((m) => (
-            <View key={m.id} style={styles.milestoneRow}>
-              <Text style={styles.milestoneIcon}>{m.icon}</Text>
-              <View style={styles.milestoneBody}>
-                <Text style={styles.milestoneTitle}>{m.title}</Text>
-                {m.detail ? (
-                  <Text style={styles.milestoneDetail}>{m.detail}</Text>
-                ) : null}
-                <Text style={styles.milestoneDate}>{formatMonthDay(m.date)}</Text>
-              </View>
-            </View>
-          ))
+          milestones.map((m) => <MilestoneRow key={m.id} milestone={m} />)
         )}
       </ScrollView>
     </View>
   );
 }
 
-function Stat({ value, label }: { value: number; label: string }) {
+function StatCell({ value, label }: { value: number; label: string }) {
   return (
-    <View style={styles.stat}>
+    <View style={styles.statCell}>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function Divider() {
+  return <View style={styles.statDivider} />;
+}
+
+function MilestoneRow({ milestone }: { milestone: Milestone }) {
+  return (
+    <View style={styles.milestoneRow}>
+      <View
+        style={[
+          styles.milestoneCircle,
+          { backgroundColor: MILESTONE_TINT[milestone.kind] },
+        ]}
+      >
+        <Text style={styles.milestoneGlyph}>{milestone.icon}</Text>
+      </View>
+      <View style={styles.milestoneBody}>
+        <Text style={styles.milestoneTitle}>{milestone.title}</Text>
+        {milestone.detail ? (
+          <Text style={styles.milestoneDetail}>{milestone.detail}</Text>
+        ) : null}
+        <Text style={styles.milestoneDate}>{fullDate(milestone.date)}</Text>
+      </View>
     </View>
   );
 }
@@ -180,133 +244,199 @@ function Stat({ value, label }: { value: number; label: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8faf5",
+    backgroundColor: colors.paper,
   },
   centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8faf5",
+    backgroundColor: colors.paper,
   },
+
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingTop: 54,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
+    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.base,
   },
-  backButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  backButtonSpacer: {
-    width: 60,
+  iconButtonText: {
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 18,
+    color: colors.forest,
+    marginTop: -2,
   },
-  backButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#2d5016",
+  iconButtonSpacer: {
+    width: 36,
+    height: 36,
   },
   topTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#2d5016",
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 15,
+    color: colors.bark,
   },
+
   content: {
-    paddingHorizontal: GUTTER,
-    paddingBottom: 48,
+    paddingHorizontal: spacing.gutter,
+    paddingBottom: spacing.xxl,
   },
+
   plantName: {
+    fontFamily: fonts.spectralSemiBold,
     fontSize: 26,
-    fontWeight: "700",
-    color: "#2d5016",
+    lineHeight: 32,
+    color: colors.ink,
+    marginTop: spacing.sm,
+  },
+  tenureLine: {
+    fontFamily: fonts.monoRegular,
+    fontSize: 12,
+    color: colors.muted,
     marginTop: 4,
-    marginBottom: 16,
   },
-  statsCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 18,
+
+  narrativeCard: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#e0e8d8",
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    padding: spacing.base,
+    marginTop: spacing.lg,
+    gap: spacing.sm,
   },
-  statsHeadline: {
+  narrativeBody: {
+    fontFamily: fonts.spectralItalic,
     fontSize: 16,
-    fontWeight: "700",
-    color: "#2d5016",
-    marginBottom: 14,
+    lineHeight: 24,
+    color: colors.bark,
   },
+
   statsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  stat: {
     alignItems: "center",
+    backgroundColor: colors.mist,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    padding: spacing.base,
+    marginTop: spacing.base,
+  },
+  statCell: {
     flex: 1,
+    alignItems: "center",
+    gap: 2,
   },
   statValue: {
+    fontFamily: fonts.monoMedium,
     fontSize: 22,
-    fontWeight: "700",
-    color: "#2d5016",
+    color: colors.ink,
   },
   statLabel: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 11,
-    color: "#888",
-    marginTop: 2,
+    color: colors.muted,
     textAlign: "center",
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#2d5016",
-    marginTop: 28,
-    marginBottom: 12,
+  statDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: colors.line,
   },
+
+  sectionHeader: {
+    marginTop: spacing.gutter,
+    marginBottom: spacing.md,
+  },
+
   emptyText: {
-    fontSize: 14,
-    color: "#999",
-    lineHeight: 20,
+    fontFamily: fonts.hankenRegular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.bark,
   },
-  gallery: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: GALLERY_GAP,
+
+  photoStrip: {
+    gap: THUMB_GAP,
+    paddingRight: spacing.gutter,
   },
-  thumb: {
-    borderRadius: 10,
-    backgroundColor: "#e8f0e0",
+  photoTile: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.wash,
   },
+  photoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  photoDateBadge: {
+    position: "absolute",
+    bottom: 6,
+    left: 6,
+    backgroundColor: "rgba(38,39,32,0.72)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+  },
+  photoDateText: {
+    fontFamily: fonts.monoMedium,
+    fontSize: 10,
+    color: colors.paper,
+  },
+
   milestoneRow: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
+    gap: spacing.md,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#e0e8d8",
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    padding: spacing.base - 2,
+    marginBottom: spacing.sm,
   },
-  milestoneIcon: {
-    fontSize: 24,
-    marginRight: 12,
+  milestoneCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  milestoneGlyph: {
+    fontSize: 20,
   },
   milestoneBody: {
     flex: 1,
+    gap: 4,
   },
   milestoneTitle: {
+    fontFamily: fonts.hankenBold,
     fontSize: 15,
-    fontWeight: "700",
-    color: "#2d5016",
+    color: colors.ink,
   },
   milestoneDetail: {
+    fontFamily: fonts.hankenRegular,
     fontSize: 13,
-    color: "#666",
-    marginTop: 3,
     lineHeight: 18,
+    color: colors.bark,
   },
   milestoneDate: {
-    fontSize: 12,
-    color: "#999",
-    marginTop: 6,
+    ...typography.metricSm,
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 2,
   },
 });
