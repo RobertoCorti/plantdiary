@@ -1,7 +1,7 @@
 # PlantDiary — Context for Claude Code
 
-## Current milestone: N4 — Plant Journal View (no-AI half built; narrative half next)
-## Last session: 2026-06-20
+## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
+## Last session: 2026-08-30
 
 ### What's done
 
@@ -176,6 +176,19 @@
 - TypeScript compiles cleanly (`npx tsc --noEmit`).
 - Verified on device in Expo Go (no push needed). Narrative half (edge function + `journal_entries` migration) is the next session.
 
+#### N4 — Plant Journal View, narrative half (DONE 2026-08-30 — verified in iOS Simulator)
+- **Dev environment this session:** returned to the project after a ~2-month gap; set up the **iOS Simulator** (Xcode 26.6 + iOS runtime) as the laptop-based dev loop. Run with `npx expo start --go` then `i` — `expo-dev-client` otherwise forces a dev-build lookup that isn't installed. Added `ios.bundleIdentifier: com.robi29.plantdiary` to `app.json` (was missing; blocked simulator launch). Expo Go covers everything except push (fine for N4). Smoke-tested the whole app — boots and works after the gap.
+- Migration `00005_journal_entries.sql` (**run manually in Supabase SQL Editor**): `journal_entries` table — `(id, plant_id FK cascade, user_id FK, period text 'YYYY-MM', narrative text, created_at)`, unique on `(plant_id, period)`, RLS "users own their journal entries", index on `plant_id`. Matches the persistence decision recorded in the no-AI-half section above.
+- `supabase/functions/generate-journal/index.ts` (new, deployed): text-only Claude (`claude-sonnet-4-6`). Uses an **RLS-scoped client** (forwards the caller's `Authorization` JWT via `global.headers`, `auth.getUser()` for `user_id`) — not service_role. **Checks the cache first** (`journal_entries` row for the period) and returns it without calling Anthropic — never re-bills on re-view. Fetches that month's events (UTC month range `[start, nextMonth)`), builds a data-grounded prompt (counts, intervals, `weather` JSONB, `ai_analysis`), fence-strips + parses JSON `{ "narrative": string }`, inserts, returns `{ period, narrative, created_at, cached }`. Returns 400 if the month has no events.
+- `src/types/index.ts`: added `JournalEntry` type (`period`, `narrative`, `created_at`).
+- `src/screens/PlantJournalScreen.tsx`: replaced the placeholder "This month" card with a **Story** section — events grouped by UTC month (`created_at.slice(0,7)`, newest first). Per month: cached narrative if present, else a tap-to-generate affordance (POST to `generate-journal` with the user's access token); `BreathingMark` spinner while generating; errors via `Alert`. Wired the previously-unused `session` prop for the token.
+- **Decision — manual generate button, not auto-on-open** (DESIGN.md §5.3 floated auto-generation): keeps cost opt-in per CONTEXT's "don't re-bill" rule. DESIGN.md permits an affordance either way.
+- **DESIGN.md §5.3 polish** (same session): month rendered as an editorial Spectral dateline (SemiBold 17); generate button switched to the §4 secondary-outline pattern (`surface` bg, `sageBorder`, radius `md`, forest 15); added an honest mono "Written {date}" footnote under each entry (uses stored `created_at`). Rest of the screen (segmented stats row, horizontal photo strip, milestone context) already conformed.
+- Verified in Simulator: generated a real June narrative grounded in actual data (7 waterings, the N2 2→4-day schedule change, weather, the `monitor` photo check-in). TypeScript compiles cleanly (`npx tsc --noEmit`).
+
+#### Housekeeping (2026-08-30)
+- `AGENTS.md` model pin updated from the retired `claude-sonnet-4-20250514` to `claude-sonnet-4-6` (edge functions were already bumped in June; the rule was stale). Committed separately.
+
 #### Edge function fixes (2026-06-18, deployed + verified)
 - Both edge functions (`identify-plant`, `analyze-plant`) pinned the retired `claude-sonnet-4-20250514` snapshot. API returned 404, our wrapper rewrapped as 502. Bumped both to `claude-sonnet-4-6` (current stable Sonnet).
 - Sonnet occasionally wraps structured output in markdown fences (` ```json …``` `) even with "respond ONLY with JSON" in the system prompt. Both functions now strip leading/trailing ` ``` `/` ```json ` before `JSON.parse` — fence-strip regex applied symmetrically in both files. Add this pattern to any new edge function that asks the model for JSON.
@@ -244,7 +257,7 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 - **N1.5 — Weather column on `plant_events`.** ✅ Complete (verified 2026-06-14). `weather` JSONB populated by `captureWeather()` on every `logEvent`/`logWatering`. Day 30 moment is now calendar-counting from here.
 - **N2 — AI Learning (per-plant watering frequency).** ✅ Complete (verified 2026-06-18). Median-based proposal, count-based confidence, structural honesty (numbers not prose), no silent change. Personal model now exists.
 - **N3 — Event-triggered Advisor.** 🟡 Code-complete (2026-06-20), pending end-to-end verify. v1 = heatwave trigger only. New `send-advisor-tips` edge function + `advisor-tips.yml` cron + coords on `profiles`. Surfaces only when forecast + plant state intersect; silent otherwise. Reads N2's learned `watering_frequency_days`. See N3 section above for pending manual steps.
-- **N4 — Plant Journal View.** 🟡 No-AI half built (2026-06-20): milestone feed + photo gallery + stats, all client-computed from `plant_events` (`src/lib/journal.ts` + `PlantJournalScreen`). Pending: run on device, then build the monthly Claude narrative (dedicated `journal_entries` table, see N4 section above). Auto-feeds from N1.5/N2 outputs.
+- **N4 — Plant Journal View.** ✅ Complete. No-AI half (2026-06-20): milestone feed + photo gallery + stats, client-computed from `plant_events`. Narrative half (2026-08-30): monthly Claude narrative via `generate-journal` edge function + cached `journal_entries` table, tap-to-generate, DESIGN.md-aligned Story section. See both N4 sections above.
 - **N5 — Slow-drift detector.** Replaces the cut 1–10 health score. Compares latest photo to 4–6 week rolling baseline; direction + evidence, no scalar.
 - **Small wins (parallel):** plant ID correction loop ("this isn't right" affordance); care stats milestone cards.
 - **Cut:** 1–10 health score (fake precision, violates honest-AI). Daily-cadence advisor (forces padding). **Shared Plants / multi-user ownership (cut 2026-06-18 — keeping app single-user).**
@@ -255,13 +268,12 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 
 ### Immediate next action
 
-**Build the N4 narrative half (monthly Claude-generated journal entry).** The no-AI half (milestones + gallery + stats) shipped this session. Next:
-1. Run the journal on device/Expo Go first to eyeball the no-AI half (no push needed).
-2. Migration: `journal_entries` table — `(id, plant_id, user_id, period text /* 'YYYY-MM' */, narrative text, created_at)`, unique on (plant_id, period), RLS "users own their journal entries". Manual run.
-3. New edge function `generate-journal` (text-only Claude, mirror `analyze-plant`'s fetch + fence-strip pattern, model `claude-sonnet-4-6`): takes plant + that month's events (incl. `weather` JSONB + any `ai_analysis`), returns a calm 1-paragraph narrative. Store into `journal_entries`.
-4. Journal screen: per-month section; if a `journal_entries` row exists show it, else a "Generate this month's entry" affordance (cache after first generate; don't re-bill on re-open).
+**N4 is complete.** The two most natural next steps:
 
-**N3 still pending (deferred this session):** positive-push test — set `HEATWAVE_DELTA_C = -100`, redeploy, curl, confirm a real notification, then revert. Negative path already verified live (see N3 section).
+1. **N5 — Slow-drift detector** (the last major piece before the Day 30 card). Compare the latest photo against a 4–6 week rolling baseline; surface direction + evidence, no scalar score. Replaces the cut 1–10 health score. Depends on accumulated photo check-ins.
+2. **N3 positive-path test** (quick, but needs a physical device — push doesn't fire in the Simulator or Expo Go): set `HEATWAVE_DELTA_C = -100`, redeploy `send-advisor-tips`, curl, confirm a real notification on device, then revert. Negative path already verified live (see N3 section).
+
+After N5, the ingredients exist to assemble the **Day 30 moment** full-screen card (first/latest photo, actual vs species interval, weather sparkline, frequency proposal with confidence).
 
 **Then, future N3 expansion:**
 - Humidity-drop trigger — blocked on structured species humidity-sensitivity (species is free text today). Needs a species-care lookup or a flag captured at add-time.
