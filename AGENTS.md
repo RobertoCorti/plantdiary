@@ -74,7 +74,7 @@ xhr.send(formData);
 - Runtime: Deno — excluded from project tsconfig via `"exclude": ["supabase/functions"]`
 - When converting binary to base64, NEVER use `String.fromCharCode(...spread)` — stack overflow on large files. Use a for loop.
 - `supabase.functions.invoke` swallows error details on non-2xx responses. Use direct `fetch` to `${supabaseUrl}/functions/v1/<name>` for better error handling.
-- AI model: always `claude-sonnet-4-20250514`
+- AI model: always `claude-sonnet-4-6`
 
 ## Data philosophy
 - Every user action that reveals something about the plant should be persisted

@@ -12,6 +12,7 @@
       "backgroundColor": "#EFEDE4"
     },
     "ios": {
+      "bundleIdentifier": "com.robi29.plantdiary",
       "supportsTablet": true
     },
     "android": {
