@@ -88,3 +88,10 @@ export type JournalStats = {
   photos: number;
   scaresSurvived: number;
 };
+
+// N4 narrative half — monthly Claude-generated entry, cached in journal_entries.
+export type JournalEntry = {
+  period: string; // 'YYYY-MM'
+  narrative: string;
+  created_at: string;
+};

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -23,7 +24,7 @@ import {
 import { EyebrowLabel } from "../components/EyebrowLabel";
 import { EventIcon, iconForMilestone } from "../components/EventIcon";
 import { BreathingMark } from "../components/BreathingMark";
-import type { Milestone, Plant, PlantEvent } from "../types";
+import type { JournalEntry, Milestone, Plant, PlantEvent } from "../types";
 import type { RootStackParamList } from "../../App";
 
 type Props = {
@@ -50,29 +51,83 @@ function fullDate(dateStr: string): string {
   });
 }
 
+// Period keys ('YYYY-MM') are UTC-based (from the ISO timestamp prefix), so
+// label them in UTC too — keeps the client and the edge function in agreement
+// about which month an event belongs to.
+function monthLabel(period: string): string {
+  const [year, month] = period.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export default function PlantJournalScreen({
-  session: _session,
+  session,
   plantId,
   navigation,
 }: Props) {
   const [plant, setPlant] = useState<Plant | null>(null);
   const [events, setEvents] = useState<PlantEvent[]>([]);
+  const [entries, setEntries] = useState<Record<string, JournalEntry>>({});
+  const [generatingPeriod, setGeneratingPeriod] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const isFocused = useIsFocused();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [plantResult, eventsResult] = await Promise.all([
+      const [plantResult, eventsResult, entriesResult] = await Promise.all([
         supabase.from("plants").select("*").eq("id", plantId).single(),
         fetchPlantEvents(supabase, plantId),
+        supabase
+          .from("journal_entries")
+          .select("period, narrative, created_at")
+          .eq("plant_id", plantId),
       ]);
       if (plantResult.data) setPlant(plantResult.data as Plant);
       setEvents(eventsResult);
+      const entryMap: Record<string, JournalEntry> = {};
+      for (const row of (entriesResult.data ?? []) as JournalEntry[]) {
+        entryMap[row.period] = row;
+      }
+      setEntries(entryMap);
     } finally {
       setLoading(false);
     }
   }, [plantId]);
+
+  const handleGenerate = useCallback(
+    async (period: string) => {
+      setGeneratingPeriod(period);
+      try {
+        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+        const resp = await fetch(`${supabaseUrl}/functions/v1/generate-journal`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ plant_id: plantId, period }),
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          throw new Error(`Generation failed (${resp.status}): ${errText}`);
+        }
+        const entry = (await resp.json()) as JournalEntry;
+        setEntries((prev) => ({ ...prev, [period]: entry }));
+      } catch (err) {
+        Alert.alert(
+          "Couldn't write this entry",
+          err instanceof Error ? err.message : "Please try again."
+        );
+      } finally {
+        setGeneratingPeriod(null);
+      }
+    },
+    [plantId, session.access_token]
+  );
 
   useEffect(() => {
     if (isFocused) fetchData();
@@ -97,6 +152,13 @@ export default function PlantJournalScreen({
         })),
     [events]
   );
+  // Months that actually have events, newest first. The 'YYYY-MM' key comes
+  // straight from the UTC ISO prefix so it lines up with the edge function.
+  const periods = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of events) set.add(e.created_at.slice(0, 7));
+    return Array.from(set).sort().reverse();
+  }, [events]);
 
   if (loading || !plant || !stats) {
     return (
@@ -130,14 +192,49 @@ export default function PlantJournalScreen({
           together · since {fullDate(plant.created_at)}
         </Text>
 
-        <View style={styles.narrativeCard}>
-          <EyebrowLabel>This month</EyebrowLabel>
-          <Text style={styles.narrativeBody}>
-            Monthly narratives will appear here once {plant.name} has a full
-            month of events to draw from. A short, calm summary — what changed,
-            what stayed steady.
-          </Text>
+        <View style={styles.sectionHeaderFirst}>
+          <EyebrowLabel>Story</EyebrowLabel>
         </View>
+        {periods.length === 0 ? (
+          <Text style={styles.emptyText}>
+            Monthly stories appear here once {plant.name} has logged events to
+            draw from — a short, calm summary of what changed and what stayed
+            steady.
+          </Text>
+        ) : (
+          periods.map((period) => (
+            <View key={period} style={styles.narrativeCard}>
+              <Text style={styles.monthLabel}>{monthLabel(period)}</Text>
+              {entries[period] ? (
+                <>
+                  <Text style={styles.narrativeBody}>
+                    {entries[period].narrative}
+                  </Text>
+                  <Text style={styles.writtenLine}>
+                    Written {fullDate(entries[period].created_at)}
+                  </Text>
+                </>
+              ) : generatingPeriod === period ? (
+                <View style={styles.generatingRow}>
+                  <BreathingMark size={28} color={colors.forest} />
+                  <Text style={styles.generatingText}>
+                    Writing this month's story…
+                  </Text>
+                </View>
+              ) : (
+                <Pressable
+                  style={styles.generateButton}
+                  onPress={() => handleGenerate(period)}
+                  disabled={generatingPeriod !== null}
+                >
+                  <Text style={styles.generateButtonText}>
+                    Generate this month's story
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          ))
+        )}
 
         <View style={styles.statsRow}>
           <StatCell value={stats.waterings} label="waterings" />
@@ -291,14 +388,50 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.lg,
     padding: spacing.base,
-    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
     gap: spacing.sm,
+  },
+  monthLabel: {
+    fontFamily: fonts.spectralSemiBold,
+    fontSize: 17,
+    lineHeight: 22,
+    color: colors.ink,
   },
   narrativeBody: {
     fontFamily: fonts.spectralItalic,
     fontSize: 16,
     lineHeight: 24,
     color: colors.bark,
+  },
+  writtenLine: {
+    fontFamily: fonts.monoRegular,
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: spacing.xs,
+  },
+  generateButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.sageBorder,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.gutter,
+    alignItems: "center",
+  },
+  generateButtonText: {
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 15,
+    color: colors.forest,
+  },
+  generatingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  generatingText: {
+    fontFamily: fonts.hankenRegular,
+    fontSize: 13,
+    color: colors.muted,
   },
 
   statsRow: {
@@ -335,6 +468,10 @@ const styles = StyleSheet.create({
 
   sectionHeader: {
     marginTop: spacing.gutter,
+    marginBottom: spacing.md,
+  },
+  sectionHeaderFirst: {
+    marginTop: spacing.lg,
     marginBottom: spacing.md,
   },
 
