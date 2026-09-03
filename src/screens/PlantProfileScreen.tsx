@@ -22,6 +22,7 @@ import {
   fetchPlantEvents,
   logEvent,
 } from "../lib/events";
+import { deletePlant } from "../lib/plants";
 import { proposeFrequency } from "../lib/learning";
 import {
   colors,
@@ -196,6 +197,7 @@ export default function PlantProfileScreen({
   const [proposal, setProposal] = useState<FrequencyProposal | null>(null);
   const [proposalDismissed, setProposalDismissed] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const isFocused = useIsFocused();
 
   const fetchData = useCallback(async () => {
@@ -345,6 +347,34 @@ export default function PlantProfileScreen({
       Alert.alert("Error", "Could not update schedule. Please try again.");
     } finally {
       setAccepting(false);
+    }
+  }
+
+  function confirmRemovePlant() {
+    if (!plant || removing) return;
+    Alert.alert(
+      "Remove plant",
+      `Remove ${plant.name}? This permanently deletes its photos, timeline, and journal. This can't be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: handleRemovePlant,
+        },
+      ]
+    );
+  }
+
+  async function handleRemovePlant() {
+    if (!plant) return;
+    setRemoving(true);
+    try {
+      await deletePlant(supabase, plant, events);
+      navigation.goBack();
+    } catch {
+      Alert.alert("Error", "Could not remove the plant. Please try again.");
+      setRemoving(false);
     }
   }
 
@@ -644,6 +674,19 @@ export default function PlantProfileScreen({
             </View>
           ))
         )}
+
+        <Pressable
+          style={styles.removeButton}
+          onPress={confirmRemovePlant}
+          disabled={removing}
+          hitSlop={8}
+        >
+          {removing ? (
+            <ActivityIndicator color={colors.waterTodayText} size="small" />
+          ) : (
+            <Text style={styles.removeButtonText}>Remove plant</Text>
+          )}
+        </Pressable>
       </ScrollView>
 
       <View style={styles.bottomBar}>
@@ -1158,6 +1201,17 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.bark,
     marginBottom: spacing.sm,
+  },
+  removeButton: {
+    marginTop: spacing.xl,
+    alignSelf: "center",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  removeButtonText: {
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 14,
+    color: colors.waterTodayText,
   },
 
   eventRow: {

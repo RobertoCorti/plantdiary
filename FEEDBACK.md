@@ -15,6 +15,7 @@ and linked to a fix commit when closed.
 | #  | Date       | Reporter | Device            | Type | Severity | Summary                          | Status   |
 |----|------------|----------|-------------------|------|----------|----------------------------------|----------|
 | 1  | 2026-08-30 | sister   | Android           | bug  | blocker  | App crashed on launch            | resolved |
+| 2  | 2026-09-03 | sister   | Android           | ux   | major    | No way to remove/delete a plant  | resolved |
 
 ---
 
@@ -25,6 +26,28 @@ _(none yet)_
 ---
 
 ## Resolved
+
+### #2 — No way to remove/delete a plant · `ux` · `major` · resolved
+- **Reporter / device:** sister · Android
+- **Symptom:** Couldn't figure out how to remove a plant she no longer wanted — there was
+  simply no delete affordance anywhere in the app.
+- **Cause:** Deletion was never built. Two latent blockers also existed: `plant_events`
+  referenced `plants` with no `ON DELETE CASCADE` (so a raw plant delete would fail once
+  events existed), and `plant-photos` storage had no DELETE policy.
+- **Fix:**
+  - Added `src/lib/plants.ts` — `deletePlant()`: deletes events, then the plant, then best-effort
+    removes associated storage photos (profile + check-in photos). Photo cleanup failure only warns.
+  - `PlantProfileScreen.tsx`: "Remove plant" button at the bottom of the timeline → destructive
+    confirmation Alert → deletes and navigates back. Loading state while removing.
+  - Migration `00006_delete_plant.sql`: adds `ON DELETE CASCADE` to the `plant_events` FK and a
+    storage DELETE policy scoped to the user's own folder. **Must be run manually in Supabase.**
+- **Note:** App-side cleanup already handles events explicitly, but the cascade makes the DB
+  self-consistent and protects the manual delete path.
+- **Verified:** 2026-09-03 in iOS Simulator (Expo Go) + SQL Editor checks — plant, `plant_events`,
+  `journal_entries`, and `plant-photos` storage objects all removed. Migration `00006` applied.
+  Ships to sister's Android build on next `eas build --profile preview --platform android`.
+
+---
 
 ### #1 — App crashed on launch · `bug` · `blocker` · resolved
 - **Reporter / device:** sister · Android (first preview APK)

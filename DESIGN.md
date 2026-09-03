@@ -300,6 +300,10 @@ Event background colors:
 - **Group timeline by week**: "This week" / "Last week" / "2 weeks ago" / etc. Date grouping on the existing events array.
 - **Proposal card copy change**: Contrast species default vs. user's actual data. "Care guides say 7; you've found your own rhythm at 9.2 days."
 - **Replace emoji event icons** with SVG icons in colored circles (see §4 Event icon).
+- **"Remove plant" affordance** at the very bottom of the scroll (below the timeline): low-emphasis
+  centered text button in `waterTodayText` (destructive tone), Hanken 600 14px. Intentionally
+  understated to avoid accidental taps. Tap → destructive confirmation Alert → delete + `goBack()`.
+  Deletion is permanent (no undo, no archive) — the confirmation copy says so explicitly.
 
 **Color/type changes:**
 - Container: `paper`

@@ -1,7 +1,22 @@
 # PlantDiary — Context for Claude Code
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-08-30
+## Last session: 2026-09-03
+
+### Small win — Delete plant (2026-09-03, from FEEDBACK #2)
+- Tester (sister) couldn't find a way to remove a plant — it didn't exist. Built it.
+- `src/lib/plants.ts` — `deletePlant()`: deletes `plant_events`, then `plants`, then best-effort
+  removes storage photos (profile + check-ins). `storagePathFromPublicUrl()` helper parses the
+  public URL back to a bucket path.
+- `PlantProfileScreen.tsx`: "Remove plant" button below timeline → destructive confirm Alert →
+  delete → `navigation.goBack()`. `removing` loading state.
+- **Migration `00006_delete_plant.sql`** — adds `ON DELETE CASCADE` to the `plant_events → plants`
+  FK and a `plant-photos` storage DELETE policy. **Applied to Supabase 2026-09-03.**
+- `npx tsc --noEmit` passes.
+- **Verified end-to-end 2026-09-03** in iOS Simulator (Expo Go, launched via `npx expo start --ios --go`)
+  + SQL checks: plant, events, journal entries, and storage photos all removed.
+- **Pending:** rebuild the Android preview APK (`eas build --profile preview --platform android`)
+  so the tester's device gets the Remove button. Pure JS/TS change — no dev-client rebuild needed.
 
 ### What's done
 
