@@ -1,3 +1,22 @@
+# Collaboration Workflow
+
+Roberto is learning while building this app. Explain changes clearly and follow
+this approval sequence for each atomic change, including documentation:
+
+1. Before editing, summarize what will change and why. Allow discussion and wait
+   for Roberto's explicit approval before making the proposed change.
+2. Implement only the approved change and run appropriate verification.
+3. Summarize the result, show the diff and verification results, and wait for
+   Roberto's approval of the completed change.
+4. Once the change is approved, propose a commit message. Wait for approval of
+   that message before executing the commit. Do not combine these approval steps.
+
+- Follow KISS: prefer the simplest solution that meets the need; do not
+  overengineer.
+- Keep changes atomic. Repeat this workflow for each separate step.
+- Before ending the session, update CONTEXT.md with what was done and what
+  remains pending. Include that documentation edit in the approval workflow.
+
 # Product Vision & Differentiation
 
 PlantDiary is NOT a generic plant care app. The differentiator is contextual
