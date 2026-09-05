@@ -1,11 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FrequencyProposal, PlantEvent, WeatherData } from "../types";
 import { fetchWeather } from "./weather";
-import { getCurrentCoordsOrNull } from "./location";
+import { resolveHomeCoords } from "./location";
 import { log } from "./logger";
 
-async function captureWeather(): Promise<WeatherData | null> {
-  const coords = await getCurrentCoordsOrNull();
+async function captureWeather(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<WeatherData | null> {
+  const coords = await resolveHomeCoords(supabase, userId);
   if (!coords) return null;
   try {
     const w = await fetchWeather(coords.lat, coords.lon);
@@ -23,7 +26,7 @@ export async function logWatering(
   userId: string
 ): Promise<void> {
   const now = new Date().toISOString();
-  const weather = await captureWeather();
+  const weather = await captureWeather(supabase, userId);
 
   const { error: eventError } = await supabase.from("plant_events").insert({
     plant_id: plantId,
@@ -53,7 +56,7 @@ export async function logEvent(
   aiAnalysis?: string
 ): Promise<void> {
   const now = new Date().toISOString();
-  const weather = await captureWeather();
+  const weather = await captureWeather(supabase, userId);
 
   const { error: eventError } = await supabase.from("plant_events").insert({
     plant_id: plantId,
@@ -85,7 +88,7 @@ export async function acceptFrequencyProposal(
   proposal: FrequencyProposal
 ): Promise<void> {
   const now = new Date().toISOString();
-  const weather = await captureWeather();
+  const weather = await captureWeather(supabase, userId);
 
   const notes = `Schedule updated ${proposal.current_days} → ${proposal.proposed_days} days (median ${proposal.median_days.toFixed(1)}d over ${proposal.count} waterings, confidence ${proposal.confidence}).`;
 
