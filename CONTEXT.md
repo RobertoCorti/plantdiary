@@ -3,6 +3,24 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-05
 
+### Development workflow — Deno checks (2026-09-05)
+- Synced main to `8436edb` after the documentation PR merge; working branch
+  is `codex/deno-checks`.
+- Added a separate `Deno check` job to `.github/workflows/ci.yml`, using Deno
+  2.9.6 and `deno task check` from `supabase/functions`.
+- Added `supabase/functions/deno.json`: checks every `*/index.ts`, uses the
+  Deno dependency cache instead of app node_modules, and requires a frozen lockfile.
+- Added generated `deno.lock` to record resolved dependency versions and integrity.
+  To deliberately refresh it, run `deno check --frozen=false */index.ts` from
+  `supabase/functions`, then review and commit the lockfile changes.
+- Local verification: all five Edge Functions pass; the frozen `deno task check`,
+  app `npm run typecheck`, and whitespace check pass. No function code changed.
+- Deno was run locally through `npx --yes deno@2.9.6`; no app dependency added.
+- Pending: Roberto's change review and separate commit-message approval, then
+  push/PR and the first GitHub run. After it passes, require `Deno check` in
+  main's branch protection alongside `Typecheck`.
+- No functions executed or deployed; these are static checks only.
+
 ### Development workflow — first CI check (2026-09-05)
 - Goal: a reliable app for real testers, with Google Play a possible later step;
   this is a learning side project, not a commercial launch plan.

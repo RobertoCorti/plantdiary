@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   typecheck:
-    name: Typecheck
+    name: Install dependencies and check TypeScript
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -24,3 +24,16 @@ jobs:
         run: npm ci
       - name: Check TypeScript
         run: npm run typecheck
+
+  deno-check:
+    name: Deno check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.9.6'
+      - name: Check Edge Functions
+        working-directory: supabase/functions
+        run: deno task check
