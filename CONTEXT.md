@@ -3,7 +3,7 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-05
 
-### Tester fix — Home weather pin (2026-09-05)
+### Tester fix — Home weather pin (2026-09-05, from FEEDBACK #3)
 - Sister's feedback: weather followed the phone, not the plants. Travel
   overwrote `profiles` coords and poisoned `plant_events.weather`.
 - `profiles.latitude/longitude` is now a **home pin**, not last-known GPS.
@@ -11,15 +11,15 @@
 - Today weather, event `captureWeather()`, and N3 advisor all read that pin.
   Explicit **Update** is the only overwrite: city search (Open-Meteo geocoding)
   or "Use current location".
-- UI: Today care-bridge card has "Weather at home" + Update. Sheet lets you
-  search a city without GPS (works while away). No new Settings screen.
-  No migration — existing coords columns.
+- UI: Today care-bridge card has "Weather at home" + Update. Sheet copy:
+  "So we always remember your plants' home while you're away." Search works
+  without GPS (usable while away). No new Settings screen. No migration.
 - If a profile already has travel coords from before this change, they stay
   until Update is tapped once.
-- Local `npm run typecheck` and `git diff --check` pass. No migration.
-- Pending: Roberto's change review, then commit/PR. Verify in Expo Go:
-  home weather stays put after a simulated location change; search (e.g.
-  Almere) updates the card; watering an event stores home weather.
+- Committed `8d61c73` on `dev/home-weather`. Local `npm run typecheck` and
+  `git diff --check` pass. UI reviewed in Expo Go (iOS).
+- **Pending:** open/merge the PR; rebuild the Android preview APK so sister
+  gets the home pin (same rebuild already pending for FEEDBACK #2).
 
 ### Development workflow — Deno checks (2026-09-05)
 - Synced main to `8436edb` after the documentation PR merge; working branch
@@ -73,7 +73,8 @@
 - **Verified end-to-end 2026-09-03** in iOS Simulator (Expo Go, launched via `npx expo start --ios --go`)
   + SQL checks: plant, events, journal entries, and storage photos all removed.
 - **Pending:** rebuild the Android preview APK (`eas build --profile preview --platform android`)
-  so the tester's device gets the Remove button. Pure JS/TS change — no dev-client rebuild needed.
+  so the tester's device gets Remove plant **and** the home-weather pin (FEEDBACK #2 and #3).
+  Pure JS/TS — no dev-client rebuild needed.
 
 ### What's done
 
@@ -340,7 +341,10 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 
 ### Immediate next action
 
-**N4 is complete.** The two most natural next steps:
+**N4 is complete.** Tester fix FEEDBACK #3 (home weather pin) is committed on
+`dev/home-weather` (`8d61c73`); PR not opened yet (`gh` not installed locally).
+
+The two most natural product next steps:
 
 1. **N5 — Slow-drift detector** (the last major piece before the Day 30 card). Compare the latest photo against a 4–6 week rolling baseline; surface direction + evidence, no scalar score. Replaces the cut 1–10 health score. Depends on accumulated photo check-ins.
 2. **N3 positive-path test** (quick, but needs a physical device — push doesn't fire in the Simulator or Expo Go): set `HEATWAVE_DELTA_C = -100`, redeploy `send-advisor-tips`, curl, confirm a real notification on device, then revert. Negative path already verified live (see N3 section).

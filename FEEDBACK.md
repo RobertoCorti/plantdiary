@@ -16,6 +16,7 @@ and linked to a fix commit when closed.
 |----|------------|----------|-------------------|------|----------|----------------------------------|----------|
 | 1  | 2026-08-30 | sister   | Android           | bug  | blocker  | App crashed on launch            | resolved |
 | 2  | 2026-09-03 | sister   | Android           | ux   | major    | No way to remove/delete a plant  | resolved |
+| 3  | 2026-09-05 | sister   | Android           | bug  | major    | Weather follows the phone, not home | resolved |
 
 ---
 
@@ -26,6 +27,27 @@ _(none yet)_
 ---
 
 ## Resolved
+
+### #3 — Weather follows the phone, not the plants' home · `bug` · `major` · resolved
+- **Reporter / device:** sister · Android
+- **Symptom:** Weather on Today (and the situation she would relay to whoever is at
+  home) used wherever *she* was. Away from home, the numbers were the trip, not
+  the house.
+- **Cause:** Today fetched live GPS on every focus and upserted those coords onto
+  `profiles`. Event `captureWeather()` also used live GPS, so travel weather was
+  written onto `plant_events.weather`. N3's advisor already reads `profiles`
+  coords, so a trip poisoned tomorrow's push too. Context cannot be backfilled.
+- **Fix:** Treat `profiles.latitude/longitude` as a home pin. First successful GPS
+  write seeds it; later Today opens do not overwrite. Today, event logging, and
+  N3 all read that pin. **Update** on the weather card is the only overwrite:
+  Open-Meteo city search (works without GPS) or "Use current location".
+- **Verified:** 2026-09-05 in Expo Go (iOS) — copy and Update sheet reviewed.
+  Commit `8d61c73` on `dev/home-weather`. Existing travel coords on a profile stay
+  until Update is tapped once.
+- **Pending:** merge the PR; next `eas build --profile preview --platform android`
+  so sister's device gets it (same rebuild as #2).
+
+---
 
 ### #2 — No way to remove/delete a plant · `ux` · `major` · resolved
 - **Reporter / device:** sister · Android
