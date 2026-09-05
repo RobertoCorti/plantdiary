@@ -13,10 +13,14 @@ import { useIsFocused } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Session } from "@supabase/supabase-js";
 import type { RootStackParamList } from "../../App";
-import * as Location from "expo-location";
 import { supabase } from "../lib/supabase";
 import { getWateringStatus, daysSinceWatered } from "../lib/watering";
 import { careBridgeSentence, fetchWeather } from "../lib/weather";
+import {
+  getCurrentCoordsOrNull,
+  getHomeCoords,
+  saveHomeCoords,
+} from "../lib/location";
 import { logWatering } from "../lib/events";
 import { log } from "../lib/logger";
 import {
@@ -27,6 +31,7 @@ import {
   STATUS,
   typography,
 } from "../lib/theme";
+import { HomeLocationSheet } from "../components/HomeLocationSheet";
 import { StatusBadge } from "../components/StatusBadge";
 import { EyebrowLabel } from "../components/EyebrowLabel";
 import { BreathingMark } from "../components/BreathingMark";
@@ -55,6 +60,7 @@ export default function HomeScreen({ session, navigation }: Props) {
   const [wateringIds, setWateringIds] = useState<Set<string>>(new Set());
   const [waterTapSignals, setWaterTapSignals] = useState<Record<string, number>>({});
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [showHomeModal, setShowHomeModal] = useState(false);
 
   function bumpWaterTap(plantId: string) {
     setWaterTapSignals((s) => ({ ...s, [plantId]: (s[plantId] ?? 0) + 1 }));
@@ -82,25 +88,27 @@ export default function HomeScreen({ session, navigation }: Props) {
 
   const loadWeather = useCallback(async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setWeatherError("Location access needed for weather data");
+      let coords = await getHomeCoords(supabase, session.user.id);
+      if (!coords) {
+        coords = await getCurrentCoordsOrNull();
+        if (coords) {
+          try {
+            await saveHomeCoords(supabase, session.user.id, coords);
+          } catch (err) {
+            log.warn(
+              "weather",
+              "Failed to persist home coords",
+              err instanceof Error ? err.message : err
+            );
+          }
+        }
+      }
+      if (!coords) {
+        setWeather(null);
+        setWeatherError("Set a home location for plant weather");
         return;
       }
-      const location = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = location.coords;
-      supabase
-        .from("profiles")
-        .upsert({
-          id: session.user.id,
-          latitude,
-          longitude,
-          coords_updated_at: new Date().toISOString(),
-        })
-        .then(({ error }) => {
-          if (error) log.warn("weather", "Failed to persist coords", error.message);
-        });
-      const data = await fetchWeather(latitude, longitude);
+      const data = await fetchWeather(coords.lat, coords.lon);
       setWeather(data);
       setWeatherError(null);
     } catch {
@@ -182,11 +190,23 @@ export default function HomeScreen({ session, navigation }: Props) {
     }
   }
 
+  function renderHomeRow() {
+    return (
+      <View style={styles.homeRow}>
+        <Text style={styles.homeLabel}>Weather at home</Text>
+        <Pressable onPress={() => setShowHomeModal(true)} hitSlop={8}>
+          <Text style={styles.homeUpdate}>Update</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   function renderCareBridge() {
     if (weatherError) {
       return (
         <View style={styles.bridgeCard}>
           <Text style={styles.bridgeMuted}>{weatherError}</Text>
+          {renderHomeRow()}
         </View>
       );
     }
@@ -205,6 +225,7 @@ export default function HomeScreen({ session, navigation }: Props) {
           <BridgeStat value={`${Math.round(weather.humidity)}%`} label="humidity" />
           <BridgeStat value={`${weather.precipitation} mm`} label="rain" />
         </View>
+        {renderHomeRow()}
       </View>
     );
   }
@@ -414,6 +435,15 @@ export default function HomeScreen({ session, navigation }: Props) {
           <Text style={styles.logoutText}>Log out</Text>
         </Pressable>
       </ScrollView>
+      <HomeLocationSheet
+        visible={showHomeModal}
+        userId={session.user.id}
+        onClose={() => setShowHomeModal(false)}
+        onSaved={() => {
+          setShowHomeModal(false);
+          loadWeather();
+        }}
+      />
     </View>
   );
 }
@@ -504,6 +534,25 @@ const styles = StyleSheet.create({
     fontFamily: fonts.monoMedium,
     fontSize: 14,
     color: colors.ink,
+  },
+  homeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  homeLabel: {
+    fontFamily: fonts.hankenRegular,
+    fontSize: 12,
+    color: colors.muted,
+  },
+  homeUpdate: {
+    fontFamily: fonts.hankenSemiBold,
+    fontSize: 13,
+    color: colors.fern,
   },
   bridgeStatLabel: {
     fontFamily: fonts.hankenRegular,

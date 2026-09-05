@@ -3,6 +3,24 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-05
 
+### Tester fix — Home weather pin (2026-09-05)
+- Sister's feedback: weather followed the phone, not the plants. Travel
+  overwrote `profiles` coords and poisoned `plant_events.weather`.
+- `profiles.latitude/longitude` is now a **home pin**, not last-known GPS.
+  First successful write seeds it; later Today-screen opens do not overwrite.
+- Today weather, event `captureWeather()`, and N3 advisor all read that pin.
+  Explicit **Update** is the only overwrite: city search (Open-Meteo geocoding)
+  or "Use current location".
+- UI: Today care-bridge card has "Weather at home" + Update. Sheet lets you
+  search a city without GPS (works while away). No new Settings screen.
+  No migration — existing coords columns.
+- If a profile already has travel coords from before this change, they stay
+  until Update is tapped once.
+- Local `npm run typecheck` and `git diff --check` pass. No migration.
+- Pending: Roberto's change review, then commit/PR. Verify in Expo Go:
+  home weather stays put after a simulated location change; search (e.g.
+  Almere) updates the card; watering an event stores home weather.
+
 ### Development workflow — Deno checks (2026-09-05)
 - Synced main to `8436edb` after the documentation PR merge; working branch
   is `codex/deno-checks`.
@@ -382,7 +400,8 @@ Phase 3 (Sentry) still queued — wire alongside next native-deps change to avoi
 - Supabase Edge Functions use Deno runtime — excluded from project tsconfig to avoid type conflicts.
 - Watering logic: simple date math (`last_watered_at + watering_frequency_days` vs today). No AI recommendations yet (deferred to M5).
 - Weather: displayed as context only, does not factor into watering logic yet (deferred to M5).
-- Open-Meteo API: free, no API key needed. Endpoint: `https://api.open-meteo.com/v1/forecast?latitude=X&longitude=Y&current=temperature_2m,relative_humidity_2m,precipitation`
+- Weather is for the plant home pin on `profiles` (`latitude`/`longitude`), not live GPS. First write seeds it; Today does not overwrite on travel. Update (city search or current GPS) is the only explicit change. Event weather and N3 read the same pin.
+- Open-Meteo API: free, no API key needed. Forecast: `https://api.open-meteo.com/v1/forecast?latitude=X&longitude=Y&current=temperature_2m,relative_humidity_2m,precipitation`. Place search: `https://geocoding-api.open-meteo.com/v1/search?name=...`
 - `RootStackParamList` exported from App.tsx so screens can import it for typed navigation props
 - PlantProfileScreen uses a Modal for event logging (no external dependencies)
 - `logEvent()` is the generic version; `logWatering()` kept for backward compatibility with HomeScreen's one-tap water flow
@@ -404,13 +423,15 @@ plantdiary/
 │   ├── lib/
 │   │   ├── supabase.ts      # Supabase client config
 │   │   ├── logger.ts        # log.info/warn/error(tag, message, data?) — tagged JS logger
-│   │   ├── location.ts      # getCurrentCoordsOrNull() — GPS with permission + null fallback
+│   │   ├── location.ts      # getCurrentCoordsOrNull(); getHomeCoords()/saveHomeCoords() — home pin on profiles
 │   │   ├── notifications.ts # registerForPushNotifications() — Expo push token
 │   │   ├── watering.ts      # getWateringStatus(), daysSinceWatered()
-│   │   ├── weather.ts       # fetchWeather() — Open-Meteo API
+│   │   ├── weather.ts       # fetchWeather(); searchPlaces() — Open-Meteo forecast + geocoding
 │   │   ├── events.ts        # logWatering()/logEvent()/acceptFrequencyProposal() — silently capture weather; fetchPlantEvents()
 │   │   ├── learning.ts      # proposeFrequency() — median-interval N2 proposal, count-based confidence
 │   │   └── journal.ts       # computeMilestones()/computeJournalStats() — N4 milestone feed + stats (pure)
+│   ├── components/
+│   │   └── HomeLocationSheet.tsx # Today: set home pin via city search or current GPS
 │   ├── screens/
 │   │   ├── AuthScreen.tsx    # Sign up / log in
 │   │   ├── HomeScreen.tsx    # Today Screen: weather + watering status + tappable plant cards

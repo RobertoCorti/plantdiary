@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import * as Location from "expo-location";
 import { log } from "./logger";
 
@@ -22,4 +23,36 @@ export async function getCurrentCoordsOrNull(): Promise<Coords | null> {
     log.warn("weather", "Failed to get coords", err instanceof Error ? err.message : err);
     return null;
   }
+}
+
+export async function getHomeCoords(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<Coords | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("latitude, longitude")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    log.warn("weather", "Failed to read home coords", error.message);
+    return null;
+  }
+  if (data?.latitude == null || data?.longitude == null) return null;
+  return { lat: data.latitude, lon: data.longitude };
+}
+
+export async function saveHomeCoords(
+  supabase: SupabaseClient,
+  userId: string,
+  coords: Coords
+): Promise<void> {
+  const { error } = await supabase.from("profiles").upsert({
+    id: userId,
+    latitude: coords.lat,
+    longitude: coords.lon,
+    coords_updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
 }

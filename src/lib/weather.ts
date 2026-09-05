@@ -25,6 +25,51 @@ export function careBridgeSentence(w: WeatherData): string {
   return "A steady day for your plants.";
 }
 
+export type PlaceHit = {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  admin1: string | null;
+  country: string | null;
+};
+
+export function placeSubtitle(place: PlaceHit): string {
+  return [place.admin1, place.country].filter(Boolean).join(", ");
+}
+
+export async function searchPlaces(query: string): Promise<PlaceHit[]> {
+  const name = query.trim();
+  if (name.length < 2) return [];
+
+  const url =
+    `https://geocoding-api.open-meteo.com/v1/search` +
+    `?name=${encodeURIComponent(name)}&count=5&language=en&format=json`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Geocoding API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const results = Array.isArray(data.results) ? data.results : [];
+  return results.map((row: {
+    id: number;
+    name: string;
+    latitude: number;
+    longitude: number;
+    admin1?: string;
+    country?: string;
+  }) => ({
+    id: row.id,
+    name: row.name,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    admin1: row.admin1 ?? null,
+    country: row.country ?? null,
+  }));
+}
+
 export async function fetchWeather(
   lat: number,
   lon: number
