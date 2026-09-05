@@ -10,7 +10,8 @@
   First successful write seeds it; later Today-screen opens do not overwrite.
 - Today weather, event `captureWeather()`, and N3 advisor all read that pin.
   Explicit **Update** is the only overwrite: city search (Open-Meteo geocoding)
-  or "Use current location".
+  or "Use current location". `resolveHomeCoords()` is the single first-write
+  helper used by Today and event logging.
 - UI: Today care-bridge card has "Weather at home" + Update. Sheet copy:
   "So we always remember your plants' home while you're away." Search works
   without GPS (usable while away). No new Settings screen. No migration.
@@ -427,7 +428,7 @@ plantdiary/
 │   ├── lib/
 │   │   ├── supabase.ts      # Supabase client config
 │   │   ├── logger.ts        # log.info/warn/error(tag, message, data?) — tagged JS logger
-│   │   ├── location.ts      # getCurrentCoordsOrNull(); getHomeCoords()/saveHomeCoords() — home pin on profiles
+│   │   ├── location.ts      # getCurrentCoordsOrNull(); getHomeCoords()/saveHomeCoords()/resolveHomeCoords() — home pin on profiles
 │   │   ├── notifications.ts # registerForPushNotifications() — Expo push token
 │   │   ├── watering.ts      # getWateringStatus(), daysSinceWatered()
 │   │   ├── weather.ts       # fetchWeather(); searchPlaces() — Open-Meteo forecast + geocoding

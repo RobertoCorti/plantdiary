@@ -16,13 +16,8 @@ import type { RootStackParamList } from "../../App";
 import { supabase } from "../lib/supabase";
 import { getWateringStatus, daysSinceWatered } from "../lib/watering";
 import { careBridgeSentence, fetchWeather } from "../lib/weather";
-import {
-  getCurrentCoordsOrNull,
-  getHomeCoords,
-  saveHomeCoords,
-} from "../lib/location";
+import { resolveHomeCoords } from "../lib/location";
 import { logWatering } from "../lib/events";
-import { log } from "../lib/logger";
 import {
   colors,
   fonts,
@@ -88,21 +83,7 @@ export default function HomeScreen({ session, navigation }: Props) {
 
   const loadWeather = useCallback(async () => {
     try {
-      let coords = await getHomeCoords(supabase, session.user.id);
-      if (!coords) {
-        coords = await getCurrentCoordsOrNull();
-        if (coords) {
-          try {
-            await saveHomeCoords(supabase, session.user.id, coords);
-          } catch (err) {
-            log.warn(
-              "weather",
-              "Failed to persist home coords",
-              err instanceof Error ? err.message : err
-            );
-          }
-        }
-      }
+      const coords = await resolveHomeCoords(supabase, session.user.id);
       if (!coords) {
         setWeather(null);
         setWeatherError("Set a home location for plant weather");

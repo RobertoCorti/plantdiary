@@ -56,3 +56,26 @@ export async function saveHomeCoords(
   });
   if (error) throw error;
 }
+
+/** Stored home pin, or first GPS write if none exists yet. Never overwrites. */
+export async function resolveHomeCoords(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<Coords | null> {
+  const stored = await getHomeCoords(supabase, userId);
+  if (stored) return stored;
+
+  const current = await getCurrentCoordsOrNull();
+  if (!current) return null;
+
+  try {
+    await saveHomeCoords(supabase, userId, current);
+  } catch (err) {
+    log.warn(
+      "weather",
+      "Failed to persist home coords",
+      err instanceof Error ? err.message : err
+    );
+  }
+  return current;
+}
