@@ -34,6 +34,7 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
