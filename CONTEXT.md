@@ -1,7 +1,27 @@
 # PlantDiary — Context for Claude Code
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-03
+## Last session: 2026-09-05
+
+### Development workflow — first CI check (2026-09-05)
+- Goal: a reliable app for real testers, with Google Play a possible later step;
+  this is a learning side project, not a commercial launch plan.
+- Collaboration approval workflow recorded in AGENTS.md (commit `bccd679`).
+- Roberto reports configuring main branch protection to require PRs, with no
+  required reviewer approval and no admin bypass. Required CI checks come next.
+- Working branch: `codex/typecheck-ci`, created from local main and including
+  the collaboration documentation commit.
+- Added `npm run typecheck` (`tsc --noEmit`) and a GitHub Actions workflow on
+  PRs targeting main and pushes to main: Node 24, `npm ci`, then typecheck.
+- Workflow file: `.github/workflows/ci.yml`, displayed as `CI`, with a
+  `Typecheck` job. This general CI workflow can host additional checks later.
+- This checks app TypeScript only; Deno Edge Functions remain excluded.
+- Local `npm run typecheck` and `git diff --check` pass. The GitHub runner and
+  its clean `npm ci` install have not run yet.
+- Pending: Roberto's diff approval, then separate commit message approval.
+  No CI changes committed, pushed, or deployed yet.
+- After the first successful GitHub run, select `Typecheck` as a required
+  branch-protection check. Test backend and deployment automation are later steps.
 
 ### Small win — Delete plant (2026-09-03, from FEEDBACK #2)
 - Tester (sister) couldn't find a way to remove a plant — it didn't exist. Built it.
