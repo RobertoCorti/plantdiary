@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   typecheck:
-    name: Typecheck
+    name: Install dependencies and check TypeScript
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
