@@ -8,20 +8,21 @@
   this is a learning side project, not a commercial launch plan.
 - Collaboration approval workflow recorded in AGENTS.md (commit `bccd679`).
 - Roberto reports configuring main branch protection to require PRs, with no
-  required reviewer approval and no admin bypass. Required CI checks come next.
-- Working branch: `codex/typecheck-ci`, created from local main and including
-  the collaboration documentation commit.
+  required reviewer approval and no admin bypass. After the first successful CI
+  run, he enabled required `Typecheck` status checks and up-to-date branches.
+- CI implemented on `codex/typecheck-ci` (commit `1a7d79f`), including the earlier
+  collaboration documentation commit. Roberto pushed and merged the PR manually.
 - Added `npm run typecheck` (`tsc --noEmit`) and a GitHub Actions workflow on
   PRs targeting main and pushes to main: Node 24, `npm ci`, then typecheck.
 - Workflow file: `.github/workflows/ci.yml`, displayed as `CI`, with a
   `Typecheck` job. This general CI workflow can host additional checks later.
 - This checks app TypeScript only; Deno Edge Functions remain excluded.
-- Local `npm run typecheck` and `git diff --check` pass. The GitHub runner and
-  its clean `npm ci` install have not run yet.
-- Pending: Roberto's diff approval, then separate commit message approval.
-  No CI changes committed, pushed, or deployed yet.
-- After the first successful GitHub run, select `Typecheck` as a required
-  branch-protection check. Test backend and deployment automation are later steps.
+- Local `npm run typecheck` and `git diff --check` passed. Roberto confirmed the
+  GitHub CI run passed, including its clean dependency install.
+- Local main fast-forwarded to `origin/main` at merge commit `d512a7f`.
+  Follow-up documentation branch: `codex/ci-context`.
+- First CI step complete. Deno checks, test backend, and deployment automation
+  remain future steps; no deployment was performed as part of this change.
 
 ### Small win — Delete plant (2026-09-03, from FEEDBACK #2)
 - Tester (sister) couldn't find a way to remove a plant — it didn't exist. Built it.
