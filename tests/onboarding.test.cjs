@@ -87,6 +87,14 @@ test("offline loading falls back to progress stored on this device", async () =>
   assert.equal(result.plantId, "plant-1");
 });
 
+test("loading fails safely when neither server nor device state is available", async () => {
+  const subject = setup({ readError: new Error("offline") });
+  await assert.rejects(
+    subject.loadOnboardingState(subject.client, "user-1", subject.storage),
+    /offline/
+  );
+});
+
 test("offline completion is retained locally and syncs on a later load", async () => {
   const offline = setup({ writeError: new Error("offline") });
   const completed = await offline.completeOnboarding(

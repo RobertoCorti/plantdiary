@@ -140,7 +140,8 @@ export async function loadOnboardingState(
 
   if (error) {
     log.warn("onboarding", "Could not load server onboarding state", error.message);
-    return local ?? initialState();
+    if (local) return local;
+    throw error;
   }
 
   const server = stateFromRow(data as OnboardingRow | null);
