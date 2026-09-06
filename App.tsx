@@ -5,7 +5,7 @@ import {
   NativeStackScreenProps,
 } from "@react-navigation/native-stack";
 import { Session } from "@supabase/supabase-js";
-import { StyleSheet, View } from "react-native";
+import { Alert, Linking, StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import {
@@ -26,6 +26,7 @@ import {
   IBMPlexMono_500Medium,
 } from "@expo-google-fonts/ibm-plex-mono";
 import { supabase } from "./src/lib/supabase";
+import { completeAuthCallback } from "./src/lib/auth";
 import { syncPushTokenIfAuthorized } from "./src/lib/notifications";
 import { log } from "./src/lib/logger";
 import { colors } from "./src/lib/theme";
@@ -95,6 +96,24 @@ export default function App() {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    async function handleUrl(url: string) {
+      try {
+        await completeAuthCallback(supabase, url);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "The confirmation link could not be opened.";
+        log.warn("auth", "Email confirmation callback failed", message);
+        Alert.alert("Confirmation link problem", message);
+      }
+    }
+
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl(url);
+    });
+    const subscription = Linking.addEventListener("url", ({ url }) => handleUrl(url));
+    return () => subscription.remove();
   }, []);
 
   // Refresh an existing push authorization without prompting after login.

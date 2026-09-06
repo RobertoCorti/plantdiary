@@ -3,9 +3,38 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-06
 
+### Signup email confirmation and mobile callback (2026-09-06)
+- Implemented locally after Roberto reported that signup showed no next step and
+  the confirmation email opened localhost. Pending completed-change review and
+  separate commit-message approval.
+- Signup now supplies `plantdiary://auth/callback` as `emailRedirectTo`. The Expo
+  app declares the `plantdiary` scheme, handles both implicit-token and PKCE-code
+  callbacks, establishes the Supabase session, and surfaces invalid/expired link
+  errors. This native configuration requires a fresh development/preview build;
+  Expo Go is not the target for the end-to-end callback test.
+- When email confirmation is required and signup returns no session, AuthScreen
+  now shows a clear Check your email state with the target address, resend, and
+  Use a different email. Resends use the same mobile callback. Passwords are set
+  during signup and are never sent by email.
+- **Required Supabase configuration:** add the exact URL
+  `plantdiary://auth/callback` under Authentication > URL Configuration > Redirect
+  URLs before testing. The existing Site URL may stay as the web fallback. If the
+  email template was customized, confirm that its confirmation link uses
+  `.ConfirmationURL`; otherwise Supabase can still discard the requested redirect.
+- During testing, Supabase returned `email rate limit exceeded`. Its built-in mail
+  provider currently permits only two auth emails per project per hour and is not
+  suitable for production. Wait for the quota to refill for the next test; configure
+  custom SMTP before external testing or release. No Supabase dashboard setting or
+  SMTP provider was changed in this code step.
+- Verification: `npm run typecheck`, all 21 Node tests, `git diff --check`, and
+  resolved Expo configuration pass. The callback tests cover unrelated links,
+  implicit tokens, PKCE codes, provider errors, and malformed links. A real email,
+  OS deep link, and resulting device session remain pending until the Supabase
+  redirect allowlist is configured and the mail quota refills.
+
 ### Onboarding step 3 — contextual permission timing (2026-09-06)
-- Implemented locally following Roberto's approval; pending completed-change review
-  and separate commit-message approval. No migration or dependency change.
+- Approved and committed locally as `3d5457c` (`refactor: request permissions only
+  in context`). No migration or dependency change. The commit has not been pushed.
 - App startup now calls `syncPushTokenIfAuthorized()`: it reads notification
   permission without prompting, refreshes the Expo token only when already granted,
   and preserves the existing profile upsert. New users see no push prompt after
@@ -96,7 +125,7 @@
   is recorded above.
 
 ### One-time onboarding — assessment and agreed plan (2026-09-06)
-- **Status: steps 1 and 2 merged to main in PR #6; step 3 implemented locally;
+- **Status: steps 1 and 2 merged to main in PR #6; step 3 committed locally;
   steps 4–6 pending.** `dev/onboarding` and `main` both started this step at merge
   commit `4fc0d12`. Roberto
   approved the six decisions below individually, then approved recording them
@@ -105,7 +134,9 @@
 - Objective: help newly registered users understand why logging matters and start
   their own plant diary. Six screens after signup and before Today: Welcome,
   Premise, Schedule suggestion (revised Honest AI), Diary, First plant, Done.
-  Registration and AuthScreen remain unchanged. No permission screen.
+  Registration was originally outside the onboarding scope. AuthScreen and app
+  callback handling now have a separate prerequisite fix for email confirmation,
+  documented above. No permission screen.
 - Visual reference: `/Users/roberto/Desktop/visual specs.pdf` (six pages, reviewed).
   Preserve its Loam styling, typography, layout direction, gentle motion, and
   accessibility requirements. The approved decisions below supersede conflicting
