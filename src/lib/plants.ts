@@ -1,6 +1,52 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Plant, PlantEvent } from "../types";
 import { log } from "./logger";
+import { getHomeCoords } from "./location";
+import { fetchWeather } from "./weather";
+
+type NewPlant = Pick<Plant, "user_id" | "name"> & Partial<Pick<Plant,
+  "species" | "location" | "photo_url" | "watering_frequency_days" | "last_watered_at"
+>>;
+
+export async function createPlant(supabase: SupabaseClient, input: NewPlant): Promise<Plant> {
+  if (!input.name.trim()) throw new Error("Give your plant a name.");
+  const { data, error } = await supabase.from("plants").insert({
+    user_id: input.user_id,
+    name: input.name.trim(),
+    species: input.species?.trim() || null,
+    location: input.location?.trim() || null,
+    photo_url: input.photo_url || null,
+    last_watered_at: input.last_watered_at ?? null,
+    watering_frequency_days: input.watering_frequency_days ?? null,
+  }).select("*").single();
+  if (error) throw error;
+  return data as Plant;
+}
+
+/** The plant ID also identifies its first photo event, making event retries safe. */
+export async function saveInitialPlantPhoto(
+  supabase: SupabaseClient, plant: Plant, aiAnalysis: string | null
+): Promise<void> {
+  if (!plant.photo_url) return;
+  let weather = null;
+  try {
+    const coords = await getHomeCoords(supabase, plant.user_id);
+    if (coords) weather = await fetchWeather(coords.lat, coords.lon);
+  } catch (error) {
+    log.warn("weather", "Initial photo weather unavailable", error);
+  }
+  const { error } = await supabase.from("plant_events").upsert({
+    id: plant.id,
+    plant_id: plant.id,
+    user_id: plant.user_id,
+    event_type: "photo",
+    photo_url: plant.photo_url,
+    ai_analysis: aiAnalysis,
+    weather,
+    created_at: plant.created_at,
+  }, { onConflict: "id", ignoreDuplicates: true });
+  if (error) throw error;
+}
 
 const PHOTO_PATH_MARKER = "/object/public/plant-photos/";
 

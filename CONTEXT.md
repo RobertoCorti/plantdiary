@@ -1,7 +1,184 @@
 # PlantDiary — Context for Claude Code
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-05
+## Last session: 2026-09-06
+
+### Onboarding step 2 — honest starting watering history (2026-09-06)
+- Committed as `fed4b7a` (feat: handle unknown watering history honestly) and
+  pushed to `origin/dev/onboarding`. No migration required.
+- AddPlantScreen uses LastWateredField: Today / A few days / Not sure, default null.
+  A few days opens the system date picker; only explicit confirmation changes the
+  value, cancellation preserves it, and future days cannot be selected. iOS uses
+  a spinner sheet with Use this date / Cancel; Android uses its native date dialog.
+- createPlant accepts last_watered_at and stores the chosen timestamp or null on
+  the plant only. No initial watering event is inserted, so learning counts remain
+  based on subsequent logged waterings.
+- App and reminder getWateringStatus return unknown when either date or schedule
+  is missing. Known schedules retain existing due-date behavior. Unknown plants
+  do not enter reminder lists or Water all targets.
+- Today keeps unknown plants visible in Getting to know your plants, with a neutral
+  No estimate yet badge and the normal Water action. Missing history reads Last
+  watering unknown on Today and the profile. The badge also handles a known date
+  with no schedule without claiming the plant is thriving or overdue.
+- Added Expo 56-compatible @react-native-community/datetimepicker 9.1.0 and its
+  app.json plugin (app.config.js inherits it). Expo Go includes it; installed dev
+  and preview binaries need a rebuild before using this new native dependency.
+- Verification: app TypeScript, all 12 helper/status tests, whitespace check, and
+  frozen Deno checks for all five Edge Functions pass. Tests cover date/null
+  persistence without events and client/server unknown/overdue/due/tomorrow/later
+  behavior. Native picker interaction and real backend writes remain unverified.
+- Pending: device confirmation/cancellation, layout/large-text checks, and real
+  creation/watering smoke test. send-watering-reminders was changed locally only:
+  live notification behavior requires a separate deployment. No deployment or
+  build performed. Permission timing is the next planned implementation step;
+  transactional saving and unused-photo cleanup remain separate pending proposals.
+
+### Onboarding step 1 — name-only plant creation (2026-09-06)
+- Approved and committed as `5fe39dd` (feat: allow adding plants with only a name).
+  Roberto agreed to use the simpler form in normal + Plant as well as onboarding.
+- AddPlantScreen opens the form immediately: name required, species/location text
+  optional, camera/gallery identification optional. Failed identification retains
+  an uploaded photo and allows saving; failed upload offers retry or name-only save.
+- Identification fills editable species. A corrected/cleared species does not
+  inherit the old identification's schedule. Name-only/manual-species plants have
+  no invented watering frequency. Existing XHR + FormData upload path retained.
+- `createPlant()` in src/lib/plants.ts is the shared saving path. Initial photos
+  are also stored in plant_events with identification JSON and weather from the
+  saved home pin when available; no location permission request for this event.
+- A failed photo-event write keeps the already created plant in the mounted form
+  and offers Retry journal photo or Go to Today. Deterministic first-photo event
+  ID prevents duplicate photo events on retry. Closing before retry leaves the
+  plant/profile photo saved but its journal event missing. Recovery across app
+  termination and ambiguous plant-insert responses remains part of step 4.
+- Approved cleanup: savedPlant uses React state because it controls the form.
+  The immediate double-tap guard remains a ref; a local save result preserves
+  accurate error handling before React renders the state update.
+- Species edits are tracked explicitly. Any manual edit disables the identification's
+  care suggestion for display and saving; typing the original label back does not
+  re-enable it. Successful new identification resets this flag. Original AI output
+  remains available for journal persistence. JSX formatting cleaned up.
+- Removed the homemade React hook/render harness and its three screen-handler tests.
+  Retained six focused saving-helper tests with mocked database/weather dependencies;
+  these do not verify React rendering, device behavior, or live Supabase guarantees.
+- Verification: `npm run typecheck`, `git diff --check`, and all six tests in
+  `node --test tests/plants.test.cjs` pass. No new test dependencies.
+- Transactional plant/event saving and cleanup of replaced/abandoned photo uploads
+  remain separate proposed changes; neither was implemented in this cleanup.
+- **Pending verification:** device layout/keyboard, real photo upload/identification,
+  and Supabase plant + journal-event writes. No live backend writes or deployments
+  performed in step 1. No migration or dependency change in step 1. Step 2 status
+  is recorded above.
+
+### One-time onboarding — assessment and agreed plan (2026-09-06)
+- **Status: steps 1 and 2 committed on `dev/onboarding` (not yet PR'd to main);
+  steps 3–6 pending.** `dev/onboarding` is 3 commits ahead of `main`. Roberto
+  approved the six decisions below individually, then approved recording them
+  here. This does not authorize implementation or commits: continue the atomic
+  approval workflow in AGENTS.md for each change.
+- Objective: help newly registered users understand why logging matters and start
+  their own plant diary. Six screens after signup and before Today: Welcome,
+  Premise, Schedule suggestion (revised Honest AI), Diary, First plant, Done.
+  Registration and AuthScreen remain unchanged. No permission screen.
+- Visual reference: `/Users/roberto/Desktop/visual specs.pdf` (six pages, reviewed).
+  Preserve its Loam styling, typography, layout direction, gentle motion, and
+  accessibility requirements. The approved decisions below supersede conflicting
+  copy and behavior in the original brief/PDF. Respect actual safe areas rather
+  than reproducing status-bar overlaps in the mockups.
+
+#### 1. Teach the learning capability that exists today
+- Current learning proposes a median watering interval after at least five logged
+  waterings; confidence is count-based. It does not calculate numerical error
+  ranges. Do not present fixed percentages or +/- day ranges as real estimates.
+- Screen 03 becomes a clearly labeled example of a schedule suggestion: current
+  schedule every 7 days, suggested every 9 days, based on 6 logged waterings, with
+  Keep/Update illustrated. Gently reveal the suggestion instead of animating a
+  confidence percentage. Explain that the user decides whether to change it.
+- Agreed screen 03 copy: "Your diary helps shape your care." / "PlantDiary looks
+  for patterns in the waterings you log. When they suggest a different schedule,
+  it proposes a change. You decide whether to use it."
+- Done replaces numerical confidence with "0 waterings logged" / "Your diary
+  starts here. Log waterings as they happen to start building your plant's
+  history." Show a starting schedule only when one actually exists; name-only
+  plants receive no invented schedule. Meaningful uncertainty calculations are
+  a separate future feature, outside this onboarding objective.
+
+#### 2. Allow name-only plant creation
+- Name is the only required field. Photo is optional (camera or library);
+  identification may suggest species and a starting schedule, but failure must
+  not block saving. Species is optional editable text, not a searchable catalog.
+- Manually entered species is context only: no automatic schedule without a
+  species-care lookup. Extract shared saving logic used by onboarding and normal
+  creation. Preserve an added photo as a journal event so it starts the timeline.
+- Current database permits these nullable fields, but AddPlantScreen currently
+  gates its details form on successful photo identification. No species picker
+  exists. The repository schema links plants to auth.users, not profiles; the
+  PDF's claimed profile foreign-key prerequisite is not supported by that schema.
+
+#### 3. Preserve honest starting watering information
+- Last-watered chips: Today stores today; A few days opens a date selector (never
+  silently assumes a number of days); Not sure stores null and is the default.
+- Store a selected starting date on the plant without creating a watering event.
+  Subsequent Water actions create normal events; initial recollection must not
+  count as an observed watering in learning or contradict "0 waterings logged".
+- Today shows "Last watering unknown" for missing history, not "Never watered".
+  Missing history alone must not declare a plant overdue; reminder logic must
+  follow the same rule. Calculate due dates only with a schedule and known date.
+
+#### 4. Ask for permissions after explicit actions
+- Push permission: request from Enable watering reminders in Settings. Refresh
+  tokens silently when already authorized; no automatic permission ask on login.
+- Location permission: request only through Use current location in the existing
+  home-location sheet. City search remains an alternative without GPS permission.
+- Camera permission: request after Add photo > Take photo; denial leaves name-only
+  creation available. Onboarding itself adds no permission gate.
+- Weather capture uses the saved home location silently. Without one, events still
+  save with weather unavailable; event logging must not trigger a GPS prompt.
+  Today's weather card offers Set home location without opening it automatically.
+  Weather cannot be captured until home location is set; this tradeoff is agreed.
+
+#### 5. Persist one-time behavior per account
+- Store onboarding eligibility/completion in Supabase, with a local fallback for
+  offline completion and later sync. Add a manually applied migration exempting
+  existing accounts (including those with no plants) and making future accounts
+  eligible automatically. Do not infer signup from login timestamps.
+- New users enter only after an authenticated session. Skip, Later, and Go to
+  Today permanently complete onboarding; updates/reinstalls/other devices respect
+  server state. Offline completion cannot reach other devices until it syncs.
+- Resume unfinished onboarding after interruption. Recover an already saved plant
+  and show Done rather than creating a duplicate; handle save retries explicitly.
+- Replay opens deliberately without clearing completion or changing existing plants.
+
+#### 6. Connect Done, Today, and minimal Settings
+- Share plant-card presentation between Done and Today using actual name, photo
+  (or placeholder), optional species, watering information, and consistent status.
+  Never force the example's Pothos / watered today / Thriving onto missing data.
+  Keep Today changes limited to the shared presentation and unknown-history rules.
+- Go to Today completes onboarding. Add another plant also completes onboarding,
+  then opens normal creation; cancelling returns to Today.
+- Add a minimal Settings screen accessible from Today with Enable watering
+  reminders and Replay onboarding. A plant deliberately added during replay is
+  a real record; replay preserves existing plants and completion status.
+
+#### Approved implementation order and verification plan
+1. Enable name-only creation, optional identification, editable species, and shared
+   saving with photo-event persistence.
+2. Handle unknown watering history consistently across Today and reminders.
+3. Move permission requests behind explicit actions.
+4. Add account-level gating, persistence, and interrupted-flow recovery.
+5. Build the six screens, revised schedule example, and shared plant card.
+6. Add Settings/replay and verify the complete journey. Wire the agreed Settings
+   permission action when Settings is introduced; never leave an intermediate
+   change broken or inaccessible.
+- Verify signup, returning accounts with no plants, every skip, relaunch, failed
+  saves/retries, account switching, permission denial, large text, screen readers,
+  reduced motion, and iOS/Android. Run TypeScript checks for each relevant change.
+- Measure the under-90-second target on the name-only path with a new user; optional
+  upload/identification latency cannot be guaranteed. Check that users understand
+  why logging helps, the limits of early advice, and where to log a watering.
+- Assessment baseline: clean working tree and passing `npm run typecheck`. No app
+  code, database changes, or deployments were made during assessment. Next: review
+  this documentation diff, then obtain separate commit-message approval before
+  committing; propose the first atomic implementation change afterward.
 
 ### Tester fix — Home weather pin (2026-09-05, from FEEDBACK #3)
 - Sister's feedback: weather followed the phone, not the plants. Travel

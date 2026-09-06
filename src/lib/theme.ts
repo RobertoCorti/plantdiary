@@ -129,6 +129,12 @@ export type StatusTone = {
 };
 
 export const STATUS: Record<WateringStatus, StatusTone> = {
+  unknown: {
+    label: "No estimate yet",
+    text: colors.bark,
+    bg: colors.wash,
+    dot: colors.muted,
+  },
   water_today: {
     label: "Water today",
     text: colors.waterTodayText,

@@ -109,6 +109,7 @@ export default function HomeScreen({ session, navigation }: Props) {
       water_today: [],
       check: [],
       ok: [],
+      unknown: [],
     };
     for (const p of plants) {
       buckets[getWateringStatus(p)].push(p);
@@ -271,7 +272,7 @@ export default function HomeScreen({ session, navigation }: Props) {
               </Text>
             )}
             <Text style={styles.cardWatered}>
-              {days !== null ? `Last watered ${days}d ago` : "Never watered"}
+              {days !== null ? `Last watered ${days}d ago` : "Last watering unknown"}
             </Text>
           </View>
           <Pressable
@@ -321,7 +322,7 @@ export default function HomeScreen({ session, navigation }: Props) {
             </Text>
           )}
           <Text style={styles.cardWatered}>
-            {days !== null ? `Watered ${days}d ago` : "Never watered"}
+            {days !== null ? `Watered ${days}d ago` : "Last watering unknown"}
           </Text>
         </View>
       </Pressable>
@@ -387,6 +388,14 @@ export default function HomeScreen({ session, navigation }: Props) {
                   )}
                 </View>
                 {attentionPlants.map(renderAttentionCard)}
+              </>
+            )}
+            {grouped.unknown.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <EyebrowLabel>Getting to know your plants</EyebrowLabel>
+                </View>
+                {grouped.unknown.map(renderAttentionCard)}
               </>
             )}
             {thrivingPlants.length > 0 && (

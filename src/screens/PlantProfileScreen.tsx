@@ -524,6 +524,9 @@ export default function PlantProfileScreen({
             </Text>
             <StatusBadge status={status} />
           </View>
+          {!plant.last_watered_at && (
+            <Text style={styles.location}>Last watering unknown</Text>
+          )}
           {plant.species ? (
             <Text style={styles.species}>{plant.species}</Text>
           ) : null}
