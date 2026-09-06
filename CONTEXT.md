@@ -3,10 +3,34 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-06
 
+### Onboarding step 4 — account state and interrupted-flow recovery (2026-09-06)
+- Implemented locally following Roberto's approval; pending completed-change review
+  and separate commit-message approval. Navigation and onboarding screens are not
+  wired yet, so this change has no visible app behavior by itself.
+- Added manual migration `00007_onboarding_state.sql`. It adds the named current
+  step, completion timestamp, onboarding plant ID, and state-update timestamp to
+  `profiles`. Every auth account that exists when the migration runs is backfilled
+  as complete, including accounts that were missing a profile row. A small guarded
+  auth trigger creates an eligible profile for each future account. Existing RLS
+  continues to restrict each user to their own row.
+- Added `src/lib/onboarding.ts` with helpers to load state, save the furthest step
+  and recovered plant, and complete/skip onboarding. State is cached per user in
+  Expo SecureStore. Server completion and the furthest progress win when local and
+  server state differ; local offline completion is pushed to Supabase on the next
+  successful load. Replay progress does not clear an existing completion timestamp.
+- Added the `onboarding` logger tag and four focused tests covering returning-user
+  exemption, offline resume, later completion sync, and plant recovery without
+  clearing completion.
+- Verification: `npm run typecheck`, all 25 Node tests, and `git diff --check` pass.
+  The SQL has not been applied to Supabase, and real offline/device/server behavior
+  remains unverified. Apply migration 00007 manually only after this change is
+  approved and committed, before onboarding navigation is enabled.
+- Next after this change: build and wire the six screens to these helpers, including
+  every skip path and saved-plant recovery.
+
 ### Signup email confirmation and mobile callback (2026-09-06)
-- Implemented locally after Roberto reported that signup showed no next step and
-  the confirmation email opened localhost. Pending completed-change review and
-  separate commit-message approval.
+- Approved and committed locally as `55b7a9f` (`fix: complete signup email
+  confirmation in app`). The commit has not been pushed.
 - Signup now supplies `plantdiary://auth/callback` as `emailRedirectTo`. The Expo
   app declares the `plantdiary` scheme, handles both implicit-token and PKCE-code
   callbacks, establishes the Supabase session, and surfaces invalid/expired link
@@ -125,8 +149,9 @@
   is recorded above.
 
 ### One-time onboarding — assessment and agreed plan (2026-09-06)
-- **Status: steps 1 and 2 merged to main in PR #6; step 3 committed locally;
-  steps 4–6 pending.** `dev/onboarding` and `main` both started this step at merge
+- **Status: steps 1 and 2 merged to main in PR #6; steps 3 and signup confirmation
+  committed locally; step 4 implemented locally; steps 5–6 pending.**
+  `dev/onboarding` and `main` both started this step at merge
   commit `4fc0d12`. Roberto
   approved the six decisions below individually, then approved recording them
   here. This does not authorize implementation or commits: continue the atomic
