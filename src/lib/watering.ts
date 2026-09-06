@@ -1,8 +1,7 @@
 import type { Plant, WateringStatus } from "../types";
 
 export function getWateringStatus(plant: Plant): WateringStatus {
-  if (!plant.watering_frequency_days) return "check";
-  if (!plant.last_watered_at) return "water_today";
+  if (!plant.watering_frequency_days || !plant.last_watered_at) return "unknown";
 
   const lastWatered = new Date(plant.last_watered_at);
   const today = new Date();

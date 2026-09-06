@@ -3,8 +3,38 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-06
 
+### Onboarding step 2 — honest starting watering history (2026-09-06)
+- Implemented locally following Roberto's approval; pending completed-change review
+  and separate commit-message approval. No migration required.
+- AddPlantScreen uses LastWateredField: Today / A few days / Not sure, default null.
+  A few days opens the system date picker; only explicit confirmation changes the
+  value, cancellation preserves it, and future days cannot be selected. iOS uses
+  a spinner sheet with Use this date / Cancel; Android uses its native date dialog.
+- createPlant accepts last_watered_at and stores the chosen timestamp or null on
+  the plant only. No initial watering event is inserted, so learning counts remain
+  based on subsequent logged waterings.
+- App and reminder getWateringStatus return unknown when either date or schedule
+  is missing. Known schedules retain existing due-date behavior. Unknown plants
+  do not enter reminder lists or Water all targets.
+- Today keeps unknown plants visible in Getting to know your plants, with a neutral
+  No estimate yet badge and the normal Water action. Missing history reads Last
+  watering unknown on Today and the profile. The badge also handles a known date
+  with no schedule without claiming the plant is thriving or overdue.
+- Added Expo 56-compatible @react-native-community/datetimepicker 9.1.0 and its
+  app.json plugin (app.config.js inherits it). Expo Go includes it; installed dev
+  and preview binaries need a rebuild before using this new native dependency.
+- Verification: app TypeScript, all 12 helper/status tests, whitespace check, and
+  frozen Deno checks for all five Edge Functions pass. Tests cover date/null
+  persistence without events and client/server unknown/overdue/due/tomorrow/later
+  behavior. Native picker interaction and real backend writes remain unverified.
+- Pending: device confirmation/cancellation, layout/large-text checks, and real
+  creation/watering smoke test. send-watering-reminders was changed locally only:
+  live notification behavior requires a separate deployment. No deployment or
+  build performed. Permission timing is the next planned implementation step;
+  transactional saving and unused-photo cleanup remain separate pending proposals.
+
 ### Onboarding step 1 — name-only plant creation (2026-09-06)
-- Implemented locally; pending Roberto's completed-change review. No commit yet.
+- Approved and committed as `5fe39dd` (feat: allow adding plants with only a name).
   Roberto agreed to use the simpler form in normal + Plant as well as onboarding.
 - AddPlantScreen opens the form immediately: name required, species/location text
   optional, camera/gallery identification optional. Failed identification retains
@@ -36,11 +66,11 @@
   remain separate proposed changes; neither was implemented in this cleanup.
 - **Pending verification:** device layout/keyboard, real photo upload/identification,
   and Supabase plant + journal-event writes. No live backend writes or deployments
-  performed. No migration or dependency change. Next: review this change, then
-  separate commit-message approval; step 2 watering-history work is not started.
+  performed in step 1. No migration or dependency change in step 1. Step 2 status
+  is recorded above.
 
 ### One-time onboarding — assessment and agreed plan (2026-09-06)
-- **Status: planning complete; step 1 implemented locally, awaiting review.** Roberto approved the six
+- **Status: step 1 committed; step 2 implemented locally, awaiting review.** Roberto approved the six
   decisions below individually, then approved recording them here. This does not
   authorize implementation or commits: continue the atomic approval workflow in
   AGENTS.md for each change.

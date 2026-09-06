@@ -23,6 +23,7 @@ import {
 } from "../lib/theme";
 import { ConfidenceBar } from "../components/ConfidenceBar";
 import { EyebrowLabel } from "../components/EyebrowLabel";
+import { LastWateredField } from "../components/LastWateredField";
 import { BreathingMark } from "../components/BreathingMark";
 import { createPlant, saveInitialPlantPhoto } from "../lib/plants";
 import type { Plant, AIIdentificationResult } from "../types";
@@ -50,6 +51,7 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
   const [speciesEdited, setSpeciesEdited] = useState(false);
   const [savedPlant, setSavedPlant] = useState<Plant | null>(null);
   const saving = useRef(false);
+  const [lastWateredAt, setLastWateredAt] = useState<string | null>(null);
   const [location, setLocation] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -194,6 +196,7 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
         species,
         location,
         photo_url: photoUrl,
+        last_watered_at: lastWateredAt,
         watering_frequency_days: careSuggestion?.watering_frequency_days ?? null,
       });
       setSavedPlant(plant);
@@ -314,6 +317,12 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
           editable={!savedPlant}
           value={location}
           onChangeText={setLocation}
+        />
+
+        <LastWateredField
+          value={lastWateredAt}
+          onChange={setLastWateredAt}
+          disabled={!!savedPlant}
         />
 
         {error && <Text style={styles.errorText}>{error}</Text>}

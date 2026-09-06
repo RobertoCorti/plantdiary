@@ -5,7 +5,7 @@ import { getHomeCoords } from "./location";
 import { fetchWeather } from "./weather";
 
 type NewPlant = Pick<Plant, "user_id" | "name"> & Partial<Pick<Plant,
-  "species" | "location" | "photo_url" | "watering_frequency_days"
+  "species" | "location" | "photo_url" | "watering_frequency_days" | "last_watered_at"
 >>;
 
 export async function createPlant(supabase: SupabaseClient, input: NewPlant): Promise<Plant> {
@@ -16,6 +16,7 @@ export async function createPlant(supabase: SupabaseClient, input: NewPlant): Pr
     species: input.species?.trim() || null,
     location: input.location?.trim() || null,
     photo_url: input.photo_url || null,
+    last_watered_at: input.last_watered_at ?? null,
     watering_frequency_days: input.watering_frequency_days ?? null,
   }).select("*").single();
   if (error) throw error;

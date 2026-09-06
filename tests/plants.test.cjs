@@ -89,3 +89,20 @@ test('photo-event failure is surfaced so the form can offer retry', async () => 
   const plant = await s.createPlant(s.db, { user_id: 'u', name: 'G', photo_url: 'photo.jpg' });
   await assert.rejects(s.saveInitialPlantPhoto(s.db, plant, null), /event failed/);
 });
+
+test('starting watering date saves on the plant without a watering event', async () => {
+  const s = setup();
+  const date = '2026-09-04T12:00:00.000Z';
+  const plant = await s.createPlant(s.db, { user_id: 'u', name: 'G', last_watered_at: date });
+  assert.equal(plant.last_watered_at, date);
+  assert.equal(s.writes.length, 1);
+  assert.equal(s.writes[0].table, 'plants');
+});
+
+test('Not sure or an omitted starting date remains null', async () => {
+  const s = setup();
+  for (const value of [null, undefined]) {
+    const plant = await s.createPlant(s.db, { user_id: 'u', name: 'G', last_watered_at: value });
+    assert.equal(plant.last_watered_at, null);
+  }
+});

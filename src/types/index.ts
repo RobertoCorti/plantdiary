@@ -37,7 +37,7 @@ export type FrequencyProposal = {
   confidence: "low" | "medium" | "high";
 };
 
-export type WateringStatus = "water_today" | "ok" | "check";
+export type WateringStatus = "water_today" | "ok" | "check" | "unknown";
 
 export type WeatherData = {
   temperature: number;

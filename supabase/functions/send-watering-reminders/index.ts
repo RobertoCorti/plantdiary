@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Watering status logic — mirrors src/lib/watering.ts getWateringStatus()
-type WateringStatus = "water_today" | "check" | "ok";
+type WateringStatus = "water_today" | "check" | "ok" | "unknown";
 
 interface Plant {
   id: string;
@@ -12,8 +12,7 @@ interface Plant {
 }
 
 function getWateringStatus(plant: Plant): WateringStatus {
-  if (!plant.watering_frequency_days) return "check";
-  if (!plant.last_watered_at) return "water_today";
+  if (!plant.watering_frequency_days || !plant.last_watered_at) return "unknown";
 
   const lastWatered = new Date(plant.last_watered_at);
   const today = new Date();
