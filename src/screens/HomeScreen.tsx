@@ -16,7 +16,7 @@ import type { RootStackParamList } from "../../App";
 import { supabase } from "../lib/supabase";
 import { getWateringStatus, daysSinceWatered } from "../lib/watering";
 import { careBridgeSentence, fetchWeather } from "../lib/weather";
-import { resolveHomeCoords } from "../lib/location";
+import { getHomeCoords } from "../lib/location";
 import { logWatering } from "../lib/events";
 import {
   colors,
@@ -83,7 +83,7 @@ export default function HomeScreen({ session, navigation }: Props) {
 
   const loadWeather = useCallback(async () => {
     try {
-      const coords = await resolveHomeCoords(supabase, session.user.id);
+      const coords = await getHomeCoords(supabase, session.user.id);
       if (!coords) {
         setWeather(null);
         setWeatherError("Set a home location for plant weather");
@@ -177,7 +177,7 @@ export default function HomeScreen({ session, navigation }: Props) {
       <View style={styles.homeRow}>
         <Text style={styles.homeLabel}>Weather at home</Text>
         <Pressable onPress={() => setShowHomeModal(true)} hitSlop={8}>
-          <Text style={styles.homeUpdate}>Update</Text>
+          <Text style={styles.homeUpdate}>{weather ? "Update" : "Set home location"}</Text>
         </Pressable>
       </View>
     );

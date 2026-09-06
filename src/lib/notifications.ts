@@ -5,12 +5,7 @@ import { log } from "./logger";
 
 const isExpoGo = Constants.appOwnership === "expo";
 
-/**
- * Request notification permissions and return the Expo push token.
- * Returns null if permissions denied, on a simulator, or in Expo Go
- * (which dropped remote push support in SDK 53 — use a dev build).
- */
-export async function registerForPushNotifications(): Promise<string | null> {
+async function getPushToken(requestPermission: boolean): Promise<string | null> {
   try {
     if (isExpoGo) {
       log.warn("push", "Skipped: Expo Go does not support remote push since SDK 53. Use a dev build.");
@@ -22,9 +17,31 @@ export async function registerForPushNotifications(): Promise<string | null> {
       return null;
     }
 
-    log.info("push", "Registering for push notifications…");
-
     const Notifications = require("expo-notifications");
+
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== "granted") {
+      if (!requestPermission) {
+        log.info("push", "Permission not granted; waiting for user action");
+        return null;
+      }
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "Default",
+          importance: Notifications.AndroidImportance.MAX,
+        });
+      }
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") {
+      log.warn("push", "Permission denied by user");
+      return null;
+    }
 
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
@@ -40,20 +57,6 @@ export async function registerForPushNotifications(): Promise<string | null> {
         name: "Default",
         importance: Notifications.AndroidImportance.MAX,
       });
-    }
-
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    if (finalStatus !== "granted") {
-      log.warn("push", "Permission denied by user");
-      return null;
     }
 
     const projectId =
@@ -75,4 +78,14 @@ export async function registerForPushNotifications(): Promise<string | null> {
     log.error("push", "Registration failed", err);
     return null;
   }
+}
+
+/** Refresh an existing authorization without ever opening a system prompt. */
+export function syncPushTokenIfAuthorized(): Promise<string | null> {
+  return getPushToken(false);
+}
+
+/** Request authorization after the user explicitly enables reminders. */
+export function enablePushNotifications(): Promise<string | null> {
+  return getPushToken(true);
 }

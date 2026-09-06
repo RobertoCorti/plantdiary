@@ -1,14 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FrequencyProposal, PlantEvent, WeatherData } from "../types";
 import { fetchWeather } from "./weather";
-import { resolveHomeCoords } from "./location";
+import { getHomeCoords } from "./location";
 import { log } from "./logger";
 
 async function captureWeather(
   supabase: SupabaseClient,
   userId: string
 ): Promise<WeatherData | null> {
-  const coords = await resolveHomeCoords(supabase, userId);
+  const coords = await getHomeCoords(supabase, userId);
   if (!coords) return null;
   try {
     const w = await fetchWeather(coords.lat, coords.lon);

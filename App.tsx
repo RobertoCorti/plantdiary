@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import {
   createNativeStackNavigator,
@@ -26,7 +26,7 @@ import {
   IBMPlexMono_500Medium,
 } from "@expo-google-fonts/ibm-plex-mono";
 import { supabase } from "./src/lib/supabase";
-import { registerForPushNotifications } from "./src/lib/notifications";
+import { syncPushTokenIfAuthorized } from "./src/lib/notifications";
 import { log } from "./src/lib/logger";
 import { colors } from "./src/lib/theme";
 import { BreathingMark } from "./src/components/BreathingMark";
@@ -97,13 +97,11 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Register for push notifications when user is logged in
-  const hasRegistered = useRef(false);
+  // Refresh an existing push authorization without prompting after login.
   useEffect(() => {
-    if (!session || hasRegistered.current) return;
-    hasRegistered.current = true;
+    if (!session) return;
 
-    registerForPushNotifications().then(async (token) => {
+    syncPushTokenIfAuthorized().then(async (token) => {
       if (!token) return;
       const { error } = await supabase.from("profiles").upsert(
         { id: session.user.id, push_token: token },
@@ -115,7 +113,7 @@ export default function App() {
         log.info("push", "Token saved to profiles", { userId: session.user.id });
       }
     });
-  }, [session]);
+  }, [session?.user.id]);
 
   // Native splash holds while fonts download.
   if (!fontsReady) return null;

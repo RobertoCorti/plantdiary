@@ -3,9 +3,35 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-06
 
+### Onboarding step 3 — contextual permission timing (2026-09-06)
+- Implemented locally following Roberto's approval; pending completed-change review
+  and separate commit-message approval. No migration or dependency change.
+- App startup now calls `syncPushTokenIfAuthorized()`: it reads notification
+  permission without prompting, refreshes the Expo token only when already granted,
+  and preserves the existing profile upsert. New users see no push prompt after
+  signup. `enablePushNotifications()` is the explicit request path reserved for
+  the Settings action in step 6; until then, users who have never granted push
+  cannot enable it from the app.
+- Automatic Today weather and event weather now use `getHomeCoords()` only.
+  Removed `resolveHomeCoords()`, which previously fell back to GPS and could open
+  a location prompt. When no home pin exists, Today shows Set home location and
+  events save with null weather. Existing home pins still load weather silently.
+- `HomeLocationSheet` remains the sole GPS permission path: the prompt follows an
+  explicit Use current location tap. City search still needs no GPS permission.
+  AddPlantScreen remains the sole camera permission path after Take photo.
+- Verification: `npm run typecheck`, `git diff --check`, and all 17 Node tests pass.
+  New tests verify silent push sync never calls the permission request, explicit
+  enablement can request it, existing authorization refreshes a token, events skip
+  weather without a home pin, and saved home coordinates attach weather. Tests use
+  mocked native/database calls; real OS prompts, device tokens, and backend writes
+  remain unverified. No deployment or native build performed.
+- Pending: device checks after the onboarding/Settings flow exists. Step 4 account
+  gating and interrupted-flow recovery is next. The merged step 2 reminder change
+  still requires a separate Edge Function deployment to affect live notifications.
+
 ### Onboarding step 2 — honest starting watering history (2026-09-06)
 - Committed as `fed4b7a` (feat: handle unknown watering history honestly) and
-  pushed to `origin/dev/onboarding`. No migration required.
+  merged to main in PR #6. No migration required.
 - AddPlantScreen uses LastWateredField: Today / A few days / Not sure, default null.
   A few days opens the system date picker; only explicit confirmation changes the
   value, cancellation preserves it, and future days cannot be selected. iOS uses
@@ -70,8 +96,9 @@
   is recorded above.
 
 ### One-time onboarding — assessment and agreed plan (2026-09-06)
-- **Status: steps 1 and 2 committed on `dev/onboarding` (not yet PR'd to main);
-  steps 3–6 pending.** `dev/onboarding` is 3 commits ahead of `main`. Roberto
+- **Status: steps 1 and 2 merged to main in PR #6; step 3 implemented locally;
+  steps 4–6 pending.** `dev/onboarding` and `main` both started this step at merge
+  commit `4fc0d12`. Roberto
   approved the six decisions below individually, then approved recording them
   here. This does not authorize implementation or commits: continue the atomic
   approval workflow in AGENTS.md for each change.
