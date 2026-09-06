@@ -4,8 +4,8 @@
 ## Last session: 2026-09-06
 
 ### Onboarding step 2 — honest starting watering history (2026-09-06)
-- Implemented locally following Roberto's approval; pending completed-change review
-  and separate commit-message approval. No migration required.
+- Committed as `fed4b7a` (feat: handle unknown watering history honestly) and
+  pushed to `origin/dev/onboarding`. No migration required.
 - AddPlantScreen uses LastWateredField: Today / A few days / Not sure, default null.
   A few days opens the system date picker; only explicit confirmation changes the
   value, cancellation preserves it, and future days cannot be selected. iOS uses
@@ -70,10 +70,11 @@
   is recorded above.
 
 ### One-time onboarding — assessment and agreed plan (2026-09-06)
-- **Status: step 1 committed; step 2 implemented locally, awaiting review.** Roberto approved the six
-  decisions below individually, then approved recording them here. This does not
-  authorize implementation or commits: continue the atomic approval workflow in
-  AGENTS.md for each change.
+- **Status: steps 1 and 2 committed on `dev/onboarding` (not yet PR'd to main);
+  steps 3–6 pending.** `dev/onboarding` is 3 commits ahead of `main`. Roberto
+  approved the six decisions below individually, then approved recording them
+  here. This does not authorize implementation or commits: continue the atomic
+  approval workflow in AGENTS.md for each change.
 - Objective: help newly registered users understand why logging matters and start
   their own plant diary. Six screens after signup and before Today: Welcome,
   Premise, Schedule suggestion (revised Honest AI), Diary, First plant, Done.
