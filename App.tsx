@@ -185,6 +185,7 @@ export default function App() {
                 <AddPlantScreen
                   session={session}
                   onPlantAdded={() => props.navigation.goBack()}
+                  onClose={() => props.navigation.goBack()}
                 />
               )}
             </Stack.Screen>
