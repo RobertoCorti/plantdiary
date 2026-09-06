@@ -13,6 +13,9 @@ export const FROND_PATH =
   "L53.62 32 L61 32";
 
 export const FROND_VIEWBOX = 64;
+// FROND_PATH contains only straight segments; their measured total is 152.86.
+// Use the real user-unit length for SVG dash animations.
+export const FROND_PATH_LENGTH = 153;
 
 type Props = {
   size?: number;

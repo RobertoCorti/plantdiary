@@ -9,7 +9,7 @@ import Animated, {
   withDelay,
   withTiming,
 } from "react-native-reanimated";
-import { FROND_PATH, FROND_VIEWBOX } from "./FrondMark";
+import { FROND_PATH, FROND_PATH_LENGTH, FROND_VIEWBOX } from "./FrondMark";
 import { fonts } from "../lib/theme";
 
 const FOREST = "#2B3926";
@@ -17,7 +17,6 @@ const CREAM = "#F1EFE4";
 
 const MARK_SIZE = 132;
 const STROKE = 5.4;
-const PATH_LENGTH = 100;
 
 const DRAW_MS = 1800;
 const WORD_DELAY_MS = 1400;
@@ -38,7 +37,7 @@ type Props = {
 // settles up beneath it, ~3s total. Calls onDone when finished so App.tsx can
 // flip to the navigator.
 export function SplashReveal({ onDone }: Props) {
-  const dashOffset = useSharedValue<number>(PATH_LENGTH);
+  const dashOffset = useSharedValue<number>(FROND_PATH_LENGTH);
   const wordOpacity = useSharedValue<number>(0);
   const wordY = useSharedValue<number>(7);
 
@@ -90,9 +89,6 @@ export function SplashReveal({ onDone }: Props) {
         viewBox={`0 0 ${FROND_VIEWBOX} ${FROND_VIEWBOX}`}
       >
         <G rotation={90} origin="32, 32">
-          {/* pathLength normalizes total path to 100 units so dashoffset can
-              animate 100→0 over a single percentage scale. The prop is
-              SVG-spec but missing from react-native-svg's type defs. */}
           <AnimatedPath
             d={FROND_PATH}
             stroke={CREAM}
@@ -100,9 +96,8 @@ export function SplashReveal({ onDone }: Props) {
             strokeLinecap="round"
             strokeLinejoin="round"
             fill="none"
-            strokeDasharray={`${PATH_LENGTH} ${PATH_LENGTH}`}
+            strokeDasharray={`${FROND_PATH_LENGTH} ${FROND_PATH_LENGTH}`}
             animatedProps={pathProps}
-            {...({ pathLength: PATH_LENGTH } as object)}
           />
         </G>
       </Svg>
