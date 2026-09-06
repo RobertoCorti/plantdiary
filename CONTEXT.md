@@ -3,10 +3,70 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-06
 
+### Onboarding step 5 — six-screen flow and app routing (2026-09-06)
+- Implemented, reviewed, and approved by Roberto. Split into atomic local commits:
+  `c4c53a8` (complete frond draw), `21f7253` (shared Today plant card),
+  `24949cb` (onboarding plant form), `c874206` (calm onboarding screens), and
+  `2ab1e93` (account routing). These commits have not been pushed.
+- App now loads onboarding state for each authenticated account before choosing a
+  root route. Eligible accounts enter onboarding; completed accounts go to Today.
+  Account switches cannot briefly reuse another user's state. When neither the
+  server nor the device cache can determine eligibility, the app shows a retry
+  state instead of incorrectly treating a returning account as new.
+- Added the six screens from the visual spec: animated Welcome; a swipeable
+  Premise / Schedule suggestion / Diary pager; the onboarding variant
+  of First Plant; and an honest Done screen. Skip, Later, and Go to Today complete
+  onboarding. Each completed pager transition saves the reached screen. Reduced
+  motion renders final states and switches pages immediately.
+- The Schedule screen uses the approved behavior the app actually supports: an
+  explicitly labeled example comparing 7d with a proposed 9d based on six logged
+  waterings, plus illustrated Keep/Update choices. It makes no percentage or
+  error-range claim. Done shows the real saved plant, `0 waterings logged`, and
+  no invented schedule or status.
+- AddPlantScreen now accepts a mode while sharing the same upload, identification,
+  `createPlant`, first-photo journal event, unknown last-watered default, and retry
+  path. Its onboarding layout makes photo/species optional, focuses the name, and
+  keeps camera permission behind Take photo. The normal add-plant route retains
+  its existing content and behavior.
+- Extracted PlantCard from Today's attention/unknown card and reused it on Done.
+  Real name, optional species/photo, watering history, and calculated status are
+  shown in both places. Day-zero copy now reads `Watered today` when applicable.
+- Interrupted `done` state reloads the saved plant by ID and offers retry or a safe
+  route to Today if the record cannot be fetched. An already saved plant is not
+  inserted again. Add another plant completes onboarding before opening the normal
+  form; cancellation returns to Today.
+- Verification: `npm run typecheck`, all 26 Node tests, `git diff --check`, and an
+  Expo iOS production export pass. The new test ensures an uncached account cannot
+  be misclassified during a server failure. Simulator control was denied by the
+  computer-use permission system, so layout, gestures, keyboard, larger text,
+  reduced motion, camera/gallery, and the real new-account journey remain pending
+  manual device review.
+- Roberto's first device review found that the welcome mark stopped after the
+  spiral and that pager transitions felt rough. The path was measured at 152.86
+  SVG units; both launch and onboarding draw animations now use a shared 153-unit
+  dash instead of the unsupported 100-unit normalization. Roberto then approved a
+  calm overlapping fade: the outgoing page fades for 450ms, the incoming surface
+  settles by 3px, and its heading/body appear on separate delays over roughly 1.2s.
+  The same transition covers Welcome to the first slide, the three pager pages,
+  the last slide to First Plant, and First Plant to Done. The onboarding plant
+  header keeps Later but no longer shows the redundant `STEP 1 OF 1` label.
+- Final verification: TypeScript, all 26 Node tests, `git diff --check`, and an Expo
+  iOS production export pass. Roberto approved the logo, pager motion, boundary
+  fades, and First Plant header during simulator review. Larger text, reduced-motion
+  device behavior, camera/gallery, and a complete real-account journey still need
+  the planned cross-platform verification pass.
+- Process note from Roberto: this step grew to roughly 1,000 changed lines. Split
+  future implementation into smaller approved and committed slices before editing
+  (flow shell, individual content groups, shared components, then wiring), even
+  when they belong to one feature.
+- Next after approval: step 6 adds minimal Settings with Enable watering reminders
+  and Replay onboarding, then the full cross-platform verification pass.
+
 ### Onboarding step 4 — account state and interrupted-flow recovery (2026-09-06)
-- Implemented locally following Roberto's approval; pending completed-change review
-  and separate commit-message approval. Navigation and onboarding screens are not
-  wired yet, so this change has no visible app behavior by itself.
+- Approved and committed locally as `f98c9bd` (`feat: persist onboarding progress
+  per account`). Migration `00007_onboarding_state.sql` was applied manually by
+  Roberto and its four `profiles.onboarding_*` columns were verified. The commit
+  has not been pushed.
 - Added manual migration `00007_onboarding_state.sql`. It adds the named current
   step, completion timestamp, onboarding plant ID, and state-update timestamp to
   `profiles`. Every auth account that exists when the migration runs is backfilled
@@ -21,12 +81,8 @@
 - Added the `onboarding` logger tag and four focused tests covering returning-user
   exemption, offline resume, later completion sync, and plant recovery without
   clearing completion.
-- Verification: `npm run typecheck`, all 25 Node tests, and `git diff --check` pass.
-  The SQL has not been applied to Supabase, and real offline/device/server behavior
-  remains unverified. Apply migration 00007 manually only after this change is
-  approved and committed, before onboarding navigation is enabled.
-- Next after this change: build and wire the six screens to these helpers, including
-  every skip path and saved-plant recovery.
+- Verification at commit: `npm run typecheck`, all 25 Node tests, and
+  `git diff --check` passed. Real offline/device/server behavior remains pending.
 
 ### Signup email confirmation and mobile callback (2026-09-06)
 - Approved and committed locally as `55b7a9f` (`fix: complete signup email
@@ -149,8 +205,9 @@
   is recorded above.
 
 ### One-time onboarding — assessment and agreed plan (2026-09-06)
-- **Status: steps 1 and 2 merged to main in PR #6; steps 3 and signup confirmation
-  committed locally; step 4 implemented locally; steps 5–6 pending.**
+- **Status: steps 1 and 2 merged to main in PR #6; steps 3, signup confirmation,
+  and 4 committed locally; migration 00007 applied; step 5 implemented locally;
+  step 6 pending.**
   `dev/onboarding` and `main` both started this step at merge
   commit `4fc0d12`. Roberto
   approved the six decisions below individually, then approved recording them
