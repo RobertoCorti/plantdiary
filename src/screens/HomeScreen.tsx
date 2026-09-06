@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Pressable,
@@ -23,7 +22,6 @@ import {
   fonts,
   radius,
   spacing,
-  STATUS,
   typography,
 } from "../lib/theme";
 import { HomeLocationSheet } from "../components/HomeLocationSheet";
@@ -31,6 +29,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { EyebrowLabel } from "../components/EyebrowLabel";
 import { BreathingMark } from "../components/BreathingMark";
 import { WaterTap } from "../components/WaterTap";
+import { PlantCard } from "../components/PlantCard";
 import type { Plant, WateringStatus, WeatherData } from "../types";
 
 type Props = {
@@ -241,57 +240,20 @@ export default function HomeScreen({ session, navigation }: Props) {
   }
 
   function renderAttentionCard(plant: Plant) {
-    const status = getWateringStatus(plant);
-    const tone = STATUS[status];
-    const days = daysSinceWatered(plant);
     const isWatering = wateringIds.has(plant.id);
 
     return (
       <View key={plant.id} style={styles.attentionCardWrap}>
-        <Pressable
-          style={[styles.attentionCard, { borderLeftColor: tone.dot }]}
+        <PlantCard
+          plant={plant}
           onPress={() => navigation.navigate("PlantProfile", { plantId: plant.id })}
-        >
-          {plant.photo_url ? (
-            <Image source={{ uri: plant.photo_url }} style={styles.attentionImage} />
-          ) : (
-            <View style={[styles.attentionImage, styles.imagePlaceholder]}>
-              <Text style={styles.imagePlaceholderText}>🌱</Text>
-            </View>
-          )}
-          <View style={styles.attentionInfo}>
-            <View style={styles.attentionTopRow}>
-              <Text style={styles.cardName} numberOfLines={1}>
-                {plant.name}
-              </Text>
-              <StatusBadge status={status} />
-            </View>
-            {plant.species && (
-              <Text style={styles.cardSpecies} numberOfLines={1}>
-                {plant.species}
-              </Text>
-            )}
-            <Text style={styles.cardWatered}>
-              {days !== null ? `Last watered ${days}d ago` : "Last watering unknown"}
-            </Text>
-          </View>
-          <Pressable
-            style={[styles.waterButton, isWatering && styles.waterButtonDisabled]}
-            onPress={() => {
-              if (isWatering) return;
-              bumpWaterTap(plant.id);
-              handleWater(plant);
-            }}
-            disabled={isWatering}
-            hitSlop={8}
-          >
-            {isWatering ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.waterButtonText}>Water</Text>
-            )}
-          </Pressable>
-        </Pressable>
+          onWater={() => {
+            if (isWatering) return;
+            bumpWaterTap(plant.id);
+            handleWater(plant);
+          }}
+          watering={isWatering}
+        />
         <WaterTap signal={waterTapSignals[plant.id] ?? 0} />
       </View>
     );
@@ -572,40 +534,7 @@ const styles = StyleSheet.create({
 
   attentionCardWrap: {
     position: "relative",
-  },
-  attentionCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderLeftWidth: 3,
-    borderRadius: radius.lg,
-    flexDirection: "row",
-    padding: spacing.md,
     marginBottom: spacing.md,
-    alignItems: "center",
-  },
-  attentionImage: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.md,
-  },
-  attentionInfo: {
-    flex: 1,
-    marginLeft: 14,
-    justifyContent: "center",
-    gap: 2,
-  },
-  attentionTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginBottom: 2,
-  },
-  cardName: {
-    fontFamily: fonts.spectralSemiBold,
-    fontSize: 18,
-    color: colors.ink,
-    flexShrink: 1,
   },
   cardSpecies: {
     fontFamily: fonts.hankenRegular,
@@ -618,22 +547,6 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 2,
   },
-  waterButton: {
-    backgroundColor: colors.rain,
-    borderRadius: radius.md,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginLeft: spacing.sm,
-  },
-  waterButtonDisabled: {
-    opacity: 0.6,
-  },
-  waterButtonText: {
-    color: "#fff",
-    fontFamily: fonts.hankenSemiBold,
-    fontSize: 13,
-  },
-
   thrivingCard: {
     backgroundColor: colors.mist,
     borderWidth: 1,
