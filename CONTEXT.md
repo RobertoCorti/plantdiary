@@ -3,8 +3,44 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-06
 
+### Onboarding step 1 — name-only plant creation (2026-09-06)
+- Implemented locally; pending Roberto's completed-change review. No commit yet.
+  Roberto agreed to use the simpler form in normal + Plant as well as onboarding.
+- AddPlantScreen opens the form immediately: name required, species/location text
+  optional, camera/gallery identification optional. Failed identification retains
+  an uploaded photo and allows saving; failed upload offers retry or name-only save.
+- Identification fills editable species. A corrected/cleared species does not
+  inherit the old identification's schedule. Name-only/manual-species plants have
+  no invented watering frequency. Existing XHR + FormData upload path retained.
+- `createPlant()` in src/lib/plants.ts is the shared saving path. Initial photos
+  are also stored in plant_events with identification JSON and weather from the
+  saved home pin when available; no location permission request for this event.
+- A failed photo-event write keeps the already created plant in the mounted form
+  and offers Retry journal photo or Go to Today. Deterministic first-photo event
+  ID prevents duplicate photo events on retry. Closing before retry leaves the
+  plant/profile photo saved but its journal event missing. Recovery across app
+  termination and ambiguous plant-insert responses remains part of step 4.
+- Approved cleanup: savedPlant uses React state because it controls the form.
+  The immediate double-tap guard remains a ref; a local save result preserves
+  accurate error handling before React renders the state update.
+- Species edits are tracked explicitly. Any manual edit disables the identification's
+  care suggestion for display and saving; typing the original label back does not
+  re-enable it. Successful new identification resets this flag. Original AI output
+  remains available for journal persistence. JSX formatting cleaned up.
+- Removed the homemade React hook/render harness and its three screen-handler tests.
+  Retained six focused saving-helper tests with mocked database/weather dependencies;
+  these do not verify React rendering, device behavior, or live Supabase guarantees.
+- Verification: `npm run typecheck`, `git diff --check`, and all six tests in
+  `node --test tests/plants.test.cjs` pass. No new test dependencies.
+- Transactional plant/event saving and cleanup of replaced/abandoned photo uploads
+  remain separate proposed changes; neither was implemented in this cleanup.
+- **Pending verification:** device layout/keyboard, real photo upload/identification,
+  and Supabase plant + journal-event writes. No live backend writes or deployments
+  performed. No migration or dependency change. Next: review this change, then
+  separate commit-message approval; step 2 watering-history work is not started.
+
 ### One-time onboarding — assessment and agreed plan (2026-09-06)
-- **Status: planning complete; implementation pending.** Roberto approved the six
+- **Status: planning complete; step 1 implemented locally, awaiting review.** Roberto approved the six
   decisions below individually, then approved recording them here. This does not
   authorize implementation or commits: continue the atomic approval workflow in
   AGENTS.md for each change.
