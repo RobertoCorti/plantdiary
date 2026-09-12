@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { authorizeSchedulerRequest } from "../_shared/scheduler-auth.ts";
 
 // N3 — Event-triggered Advisor (v1: heatwave trigger only).
 //
@@ -80,21 +81,13 @@ function joinNames(names: string[]): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers":
-          "authorization, x-client-info, apikey, content-type",
-      },
-    });
-  }
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authorizationError = authorizeSchedulerRequest(req, supabaseServiceKey);
+  if (authorizationError) return authorizationError;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey!);
 
     // Only users who have both a push token and known coordinates can get a tip.
     const { data: profiles, error: profilesError } = await supabase

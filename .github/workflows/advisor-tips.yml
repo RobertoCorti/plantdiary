@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          curl -s -X POST \
+          curl --fail-with-body --silent --show-error --request POST \
             https://xsqklmpgibpznfbpuyxe.supabase.co/functions/v1/send-advisor-tips \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/json"

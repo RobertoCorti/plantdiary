@@ -5,6 +5,7 @@
     "frozen": true
   },
   "tasks": {
-    "check": "deno check */index.ts"
+    "check": "deno check */index.ts",
+    "test": "deno test _shared/*.test.ts"
   }
 }
