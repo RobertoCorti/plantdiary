@@ -1,6 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authorizeSchedulerRequest } from "../_shared/scheduler-auth.ts";
+import {
+  getUtcScheduledWindow,
+  reserveScheduledNotification,
+  updateScheduledNotificationStatus,
+} from "../_shared/scheduled-notifications.ts";
 
 // N3 — Event-triggered Advisor (v1: heatwave trigger only).
 //
@@ -108,11 +113,15 @@ Deno.serve(async (req) => {
       );
     }
 
+    const scheduledFor = getUtcScheduledWindow();
     const pushMessages: Array<{
-      to: string;
-      title: string;
-      body: string;
-      data?: Record<string, unknown>;
+      deliveryId: string;
+      message: {
+        to: string;
+        title: string;
+        body: string;
+        data?: Record<string, unknown>;
+      };
     }> = [];
 
     for (const profile of profiles) {
@@ -145,14 +154,25 @@ Deno.serve(async (req) => {
       const subject =
         atRisk.length === 1 ? `${atRisk[0]} will` : `${joinNames(atRisk)} will`;
 
+      const deliveryId = await reserveScheduledNotification(
+        supabase,
+        "advisor-tips",
+        profile.id,
+        scheduledFor,
+      );
+      if (!deliveryId) continue;
+
       pushMessages.push({
-        to: profile.push_token,
-        title: "🔥 Heatwave incoming",
-        body:
-          `Up to ${peak}°C over the next ${FORECAST_WINDOW_DAYS} days ` +
-          `(${above}° above usual). ${subject} dry out faster than normal — ` +
-          `check on ${atRisk.length === 1 ? "it" : "them"} soon.`,
-        data: { screen: "Home" },
+        deliveryId,
+        message: {
+          to: profile.push_token,
+          title: "🔥 Heatwave incoming",
+          body:
+            `Up to ${peak}°C over the next ${FORECAST_WINDOW_DAYS} days ` +
+            `(${above}° above usual). ${subject} dry out faster than normal — ` +
+            `check on ${atRisk.length === 1 ? "it" : "them"} soon.`,
+          data: { screen: "Home" },
+        },
       });
     }
 
@@ -170,11 +190,22 @@ Deno.serve(async (req) => {
       const pushResp = await fetch("https://exp.host/--/api/v2/push/send", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(batch),
+        body: JSON.stringify(batch.map(({ message }) => message)),
       });
       if (!pushResp.ok) {
-        console.error(`Expo Push API error: ${pushResp.status} ${await pushResp.text()}`);
+        const errText = await pushResp.text();
+        await updateScheduledNotificationStatus(
+          supabase,
+          batch.map(({ deliveryId }) => deliveryId),
+          "failed",
+        );
+        throw new Error(`Expo Push API error: ${pushResp.status} ${errText}`);
       } else {
+        await updateScheduledNotificationStatus(
+          supabase,
+          batch.map(({ deliveryId }) => deliveryId),
+          "submitted",
+        );
         totalSent += batch.length;
       }
     }

@@ -1,6 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authorizeSchedulerRequest } from "../_shared/scheduler-auth.ts";
+import {
+  getUtcScheduledWindow,
+  reserveScheduledNotification,
+  updateScheduledNotificationStatus,
+} from "../_shared/scheduled-notifications.ts";
 
 // Watering status logic — mirrors src/lib/watering.ts getWateringStatus()
 type WateringStatus = "water_today" | "check" | "ok" | "unknown";
@@ -58,11 +63,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    const scheduledFor = getUtcScheduledWindow();
     const pushMessages: Array<{
-      to: string;
-      title: string;
-      body: string;
-      data?: Record<string, unknown>;
+      deliveryId: string;
+      message: {
+        to: string;
+        title: string;
+        body: string;
+        data?: Record<string, unknown>;
+      };
     }> = [];
 
     // For each user, fetch their plants and compute watering status
@@ -103,11 +112,22 @@ Deno.serve(async (req) => {
         );
       }
 
+      const deliveryId = await reserveScheduledNotification(
+        supabase,
+        "watering-reminders",
+        profile.id,
+        scheduledFor,
+      );
+      if (!deliveryId) continue;
+
       pushMessages.push({
-        to: profile.push_token,
-        title: "PlantDiary",
-        body: parts.join(" · "),
-        data: { screen: "Home" },
+        deliveryId,
+        message: {
+          to: profile.push_token,
+          title: "PlantDiary",
+          body: parts.join(" · "),
+          data: { screen: "Home" },
+        },
       });
     }
 
@@ -129,13 +149,23 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify(batch),
+        body: JSON.stringify(batch.map(({ message }) => message)),
       });
 
       if (!pushResp.ok) {
         const errText = await pushResp.text();
-        console.error(`Expo Push API error: ${pushResp.status} ${errText}`);
+        await updateScheduledNotificationStatus(
+          supabase,
+          batch.map(({ deliveryId }) => deliveryId),
+          "failed",
+        );
+        throw new Error(`Expo Push API error: ${pushResp.status} ${errText}`);
       } else {
+        await updateScheduledNotificationStatus(
+          supabase,
+          batch.map(({ deliveryId }) => deliveryId),
+          "submitted",
+        );
         totalSent += batch.length;
       }
     }
