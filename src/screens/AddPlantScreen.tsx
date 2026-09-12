@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import {
@@ -25,12 +26,15 @@ import { ConfidenceBar } from "../components/ConfidenceBar";
 import { EyebrowLabel } from "../components/EyebrowLabel";
 import { LastWateredField } from "../components/LastWateredField";
 import { BreathingMark } from "../components/BreathingMark";
+import { EventIcon } from "../components/EventIcon";
 import { createPlant, saveInitialPlantPhoto } from "../lib/plants";
 import type { Plant, AIIdentificationResult } from "../types";
 
 type Props = {
   session: Session;
-  onPlantAdded: () => void;
+  onPlantAdded: (plant: Plant) => void;
+  onClose: (savedPlant?: Plant) => void;
+  mode?: "default" | "onboarding";
 };
 
 type Step = "identifying" | "details" | "saving";
@@ -41,7 +45,12 @@ const CONFIDENCE_FILL: Record<AIIdentificationResult["confidence"], number> = {
   high: 92,
 };
 
-export default function AddPlantScreen({ session, onPlantAdded }: Props) {
+export default function AddPlantScreen({
+  session,
+  onPlantAdded,
+  onClose,
+  mode = "default",
+}: Props) {
   const [step, setStep] = useState<Step>("details");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -54,8 +63,11 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
   const [lastWateredAt, setLastWateredAt] = useState<string | null>(null);
   const [location, setLocation] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [nameFocused, setNameFocused] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const careSuggestion = speciesEdited ? null : aiResult;
+  const isOnboarding = mode === "onboarding";
 
   function editSpecies(value: string) {
     setSpecies(value);
@@ -97,6 +109,14 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
     } catch {
       setError("Could not open the photo picker. You can still save with just a name.");
     }
+  }
+
+  function choosePhotoSource() {
+    Alert.alert("Add photo", "Choose where your first photo comes from.", [
+      { text: "Take photo", onPress: () => pickImage(true) },
+      { text: "Choose from gallery", onPress: () => pickImage(false) },
+      { text: "Cancel", style: "cancel" },
+    ]);
   }
 
   async function uploadAndIdentify(uri: string) {
@@ -202,7 +222,7 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
       setSavedPlant(plant);
       await saveInitialPlantPhoto(supabase, plant, aiResult ? JSON.stringify(aiResult) : null);
 
-      onPlantAdded();
+      onPlantAdded(plant);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save";
       setError(plant
@@ -236,22 +256,74 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          isOnboarding && styles.onboardingScrollContent,
+          isOnboarding && {
+            paddingTop: insets.top + spacing.sm,
+            paddingBottom: Math.max(insets.bottom, spacing.xxl),
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Add a plant</Text>
-        <Text style={styles.subtitle}>
-          Only the name is required. Add a photo if you'd like help identifying your plant.
+        {isOnboarding && (
+          <View style={styles.onboardingHeader}>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.headerAction}
+              onPress={() => onClose(savedPlant ?? undefined)}
+            >
+              <Text style={styles.headerActionText}>Later</Text>
+            </Pressable>
+          </View>
+        )}
+        <Text style={styles.title}>
+          {isOnboarding ? "Add your first plant" : "Add a plant"}
         </Text>
+        <Text style={styles.subtitle}>
+          {isOnboarding
+            ? "Only the name is required. Everything else can wait, or come from a photo later."
+            : "Only the name is required. Add a photo if you'd like help identifying your plant."}
+        </Text>
+        {isOnboarding && (
+          <View style={styles.photoRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add an optional plant photo"
+              style={styles.photoSlot}
+              onPress={choosePhotoSource}
+              disabled={!!savedPlant}
+            >
+              {imageUri ? (
+                <Image source={{ uri: imageUri }} style={styles.photoSlotImage} />
+              ) : (
+                <>
+                  <EventIcon type="photo" size={38} />
+                  <Text style={styles.photoSlotLabel}>ADD PHOTO</Text>
+                </>
+              )}
+            </Pressable>
+            <Text style={styles.photoHelp}>
+              A first photo starts the growth timeline. Optional.
+            </Text>
+          </View>
+        )}
         <EyebrowLabel>Name</EyebrowLabel>
         <TextInput
           accessibilityLabel="Plant name"
-          style={styles.input}
+          style={[
+            styles.input,
+            isOnboarding && styles.onboardingNameInput,
+            isOnboarding && nameFocused && styles.onboardingNameInputFocused,
+          ]}
           placeholder="e.g. Giorgio"
           placeholderTextColor={colors.muted}
           value={nickname}
           onChangeText={setNickname}
           editable={!savedPlant}
+          autoFocus={isOnboarding}
+          onFocus={() => setNameFocused(true)}
+          onBlur={() => setNameFocused(false)}
         />
         <EyebrowLabel>Species · optional</EyebrowLabel>
         <TextInput
@@ -263,7 +335,7 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
           onChangeText={editSpecies}
           editable={!savedPlant}
         />
-        {!savedPlant && (
+        {!isOnboarding && !savedPlant && (
           <>
             <Pressable
               accessibilityRole="button"
@@ -282,11 +354,11 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
           </>
         )}
 
-        {imageUri && (
+        {!isOnboarding && imageUri && (
           <Image source={{ uri: imageUri }} style={styles.previewLarge} />
         )}
 
-        {careSuggestion && (
+        {!isOnboarding && careSuggestion && (
           <View style={styles.resultCard}>
             <Text style={styles.speciesName}>{careSuggestion.common_name}</Text>
             <Text style={styles.scientificName}>{careSuggestion.species}</Text>
@@ -308,16 +380,20 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
           </View>
         )}
 
-        <EyebrowLabel>Location · optional</EyebrowLabel>
-        <TextInput
-          style={styles.input}
-          placeholder='e.g. "Living room window"'
-          placeholderTextColor={colors.muted}
-          accessibilityLabel="Location, optional"
-          editable={!savedPlant}
-          value={location}
-          onChangeText={setLocation}
-        />
+        {!isOnboarding && (
+          <>
+            <EyebrowLabel>Location · optional</EyebrowLabel>
+            <TextInput
+              style={styles.input}
+              placeholder='e.g. "Living room window"'
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="Location, optional"
+              editable={!savedPlant}
+              value={location}
+              onChangeText={setLocation}
+            />
+          </>
+        )}
 
         <LastWateredField
           value={lastWateredAt}
@@ -330,7 +406,11 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
         <Pressable
           accessibilityRole="button"
           disabled={!nickname.trim()}
-          style={[styles.primaryButton, !nickname.trim() && styles.disabledButton]}
+          style={[
+            styles.primaryButton,
+            isOnboarding && styles.onboardingPrimaryButton,
+            !nickname.trim() && styles.disabledButton,
+          ]}
           onPress={savePlant}
         >
           <Text style={styles.primaryButtonText}>
@@ -340,11 +420,18 @@ export default function AddPlantScreen({ session, onPlantAdded }: Props) {
           </Text>
         </Pressable>
 
-        <Pressable style={styles.cancelButton} onPress={onPlantAdded}>
-          <Text style={styles.cancelButtonText}>
-            {savedPlant ? "Go to Today" : "Cancel"}
-          </Text>
-        </Pressable>
+        {!isOnboarding && (
+          <Pressable
+            style={styles.cancelButton}
+            onPress={() =>
+              savedPlant ? onPlantAdded(savedPlant) : onClose()
+            }
+          >
+            <Text style={styles.cancelButtonText}>
+              {savedPlant ? "Go to Today" : "Cancel"}
+            </Text>
+          </Pressable>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -375,6 +462,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.gutter,
     paddingTop: 72,
     paddingBottom: spacing.xxl,
+  },
+  onboardingScrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 28,
+  },
+  onboardingHeader: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    marginBottom: spacing.lg,
+  },
+  headerAction: {
+    minHeight: 44,
+    minWidth: 44,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  headerActionText: {
+    fontFamily: fonts.hankenMedium,
+    fontSize: 15,
+    color: colors.muted,
   },
   title: {
     ...typography.display,
@@ -409,6 +518,39 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     borderWidth: 1,
     borderColor: colors.line,
+  },
+  photoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.base,
+    marginBottom: spacing.gutter,
+  },
+  photoSlot: {
+    width: 88,
+    height: 88,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.sageBorder,
+    backgroundColor: colors.wash,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    gap: spacing.xs,
+  },
+  photoSlotImage: { width: "100%", height: "100%" },
+  photoSlotLabel: {
+    fontFamily: fonts.monoMedium,
+    fontSize: 8,
+    letterSpacing: 1,
+    color: colors.fern,
+  },
+  photoHelp: {
+    flex: 1,
+    fontFamily: fonts.hankenRegular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.bark,
   },
 
   resultCard: {
@@ -479,6 +621,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.base,
   },
+  onboardingNameInput: {
+    minHeight: 52,
+    borderRadius: 14,
+    fontFamily: fonts.spectralMedium,
+    fontSize: 19,
+  },
+  onboardingNameInputFocused: {
+    borderColor: colors.forest,
+  },
   errorText: {
     fontFamily: fonts.hankenRegular,
     fontSize: 13,
@@ -493,6 +644,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     marginBottom: spacing.md,
+  },
+  onboardingPrimaryButton: {
+    minHeight: 52,
+    borderRadius: 14,
   },
   disabledButton: {
     opacity: 0.5,

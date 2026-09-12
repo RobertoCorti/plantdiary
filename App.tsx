@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import {
   createNativeStackNavigator,
   NativeStackScreenProps,
 } from "@react-navigation/native-stack";
 import { Session } from "@supabase/supabase-js";
-import { StyleSheet, View } from "react-native";
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import {
@@ -26,7 +26,9 @@ import {
   IBMPlexMono_500Medium,
 } from "@expo-google-fonts/ibm-plex-mono";
 import { supabase } from "./src/lib/supabase";
-import { registerForPushNotifications } from "./src/lib/notifications";
+import { completeAuthCallback } from "./src/lib/auth";
+import { loadOnboardingState, type OnboardingState } from "./src/lib/onboarding";
+import { syncPushTokenIfAuthorized } from "./src/lib/notifications";
 import { log } from "./src/lib/logger";
 import { colors } from "./src/lib/theme";
 import { BreathingMark } from "./src/components/BreathingMark";
@@ -36,6 +38,7 @@ import HomeScreen from "./src/screens/HomeScreen";
 import AddPlantScreen from "./src/screens/AddPlantScreen";
 import PlantProfileScreen from "./src/screens/PlantProfileScreen";
 import PlantJournalScreen from "./src/screens/PlantJournalScreen";
+import OnboardingScreen from "./src/screens/OnboardingScreen";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* already prevented */
@@ -47,6 +50,7 @@ export type RootStackParamList = {
   PlantProfile: { plantId: string };
   PlantJournal: { plantId: string };
   Auth: undefined;
+  Onboarding: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -54,6 +58,11 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [onboardingUserId, setOnboardingUserId] = useState<string | null>(null);
+  const [onboardingError, setOnboardingError] = useState(false);
+  const [onboardingRetry, setOnboardingRetry] = useState(0);
   const [revealDone, setRevealDone] = useState(false);
   const [fontsLoaded, fontError] = useFonts({
     Spectral_400Regular,
@@ -97,13 +106,59 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Register for push notifications when user is logged in
-  const hasRegistered = useRef(false);
   useEffect(() => {
-    if (!session || hasRegistered.current) return;
-    hasRegistered.current = true;
+    let active = true;
+    if (!session) {
+      setOnboardingState(null);
+      setOnboardingUserId(null);
+      setOnboardingError(false);
+      setOnboardingLoading(false);
+      return;
+    }
+    setOnboardingLoading(true);
+    setOnboardingError(false);
+    loadOnboardingState(supabase, session.user.id)
+      .then((state) => {
+        if (!active) return;
+        setOnboardingState(state);
+        setOnboardingUserId(session.user.id);
+        setOnboardingLoading(false);
+      })
+      .catch((error) => {
+        if (!active) return;
+        log.warn("onboarding", "Could not determine onboarding eligibility", error);
+        setOnboardingUserId(session.user.id);
+        setOnboardingError(true);
+        setOnboardingLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [session?.user.id, onboardingRetry]);
 
-    registerForPushNotifications().then(async (token) => {
+  useEffect(() => {
+    async function handleUrl(url: string) {
+      try {
+        await completeAuthCallback(supabase, url);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "The confirmation link could not be opened.";
+        log.warn("auth", "Email confirmation callback failed", message);
+        Alert.alert("Confirmation link problem", message);
+      }
+    }
+
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl(url);
+    });
+    const subscription = Linking.addEventListener("url", ({ url }) => handleUrl(url));
+    return () => subscription.remove();
+  }, []);
+
+  // Refresh an existing push authorization without prompting after login.
+  useEffect(() => {
+    if (!session) return;
+
+    syncPushTokenIfAuthorized().then(async (token) => {
       if (!token) return;
       const { error } = await supabase.from("profiles").upsert(
         { id: session.user.id, push_token: token },
@@ -115,7 +170,7 @@ export default function App() {
         log.info("push", "Token saved to profiles", { userId: session.user.id });
       }
     });
-  }, [session]);
+  }, [session?.user.id]);
 
   // Native splash holds while fonts download.
   if (!fontsReady) return null;
@@ -126,10 +181,28 @@ export default function App() {
   }
 
   // Splash finished before auth resolved — calm holding state.
-  if (loading) {
+  if (
+    loading ||
+    (session && (onboardingLoading || onboardingUserId !== session.user.id))
+  ) {
     return (
       <View style={styles.splash}>
         <BreathingMark size={64} color={colors.forest} />
+      </View>
+    );
+  }
+
+  if (session && onboardingError) {
+    return (
+      <View style={styles.gateError}>
+        <Text style={styles.gateErrorTitle}>Couldn't load your account</Text>
+        <Text style={styles.gateErrorBody}>Check your connection and try again.</Text>
+        <Pressable
+          style={styles.gateRetryButton}
+          onPress={() => setOnboardingRetry((value) => value + 1)}
+        >
+          <Text style={styles.gateRetryText}>Retry</Text>
+        </Pressable>
       </View>
     );
   }
@@ -139,39 +212,59 @@ export default function App() {
       <StatusBar style="dark" />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session ? (
-          <>
-            <Stack.Screen name="Home">
-              {(props: NativeStackScreenProps<RootStackParamList, "Home">) => (
-                <HomeScreen session={session} navigation={props.navigation} />
-              )}
-            </Stack.Screen>
-            <Stack.Screen name="PlantProfile">
-              {(props: NativeStackScreenProps<RootStackParamList, "PlantProfile">) => (
-                <PlantProfileScreen
+          onboardingState && !onboardingState.completedAt ? (
+            <Stack.Screen name="Onboarding">
+              {() => (
+                <OnboardingScreen
                   session={session}
-                  plantId={props.route.params.plantId}
-                  navigation={props.navigation}
+                  initialState={onboardingState}
+                  onFinished={() =>
+                    setOnboardingState((current) => ({
+                      ...(current ?? onboardingState),
+                      step: "done",
+                      completedAt: current?.completedAt ?? new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                    }))
+                  }
                 />
               )}
             </Stack.Screen>
-            <Stack.Screen name="PlantJournal">
-              {(props: NativeStackScreenProps<RootStackParamList, "PlantJournal">) => (
-                <PlantJournalScreen
-                  session={session}
-                  plantId={props.route.params.plantId}
-                  navigation={props.navigation}
-                />
-              )}
-            </Stack.Screen>
-            <Stack.Screen name="AddPlant" options={{ presentation: "modal" }}>
-              {(props: NativeStackScreenProps<RootStackParamList, "AddPlant">) => (
-                <AddPlantScreen
-                  session={session}
-                  onPlantAdded={() => props.navigation.goBack()}
-                />
-              )}
-            </Stack.Screen>
-          </>
+          ) : (
+            <>
+              <Stack.Screen name="Home">
+                {(props: NativeStackScreenProps<RootStackParamList, "Home">) => (
+                  <HomeScreen session={session} navigation={props.navigation} />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="PlantProfile">
+                {(props: NativeStackScreenProps<RootStackParamList, "PlantProfile">) => (
+                  <PlantProfileScreen
+                    session={session}
+                    plantId={props.route.params.plantId}
+                    navigation={props.navigation}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="PlantJournal">
+                {(props: NativeStackScreenProps<RootStackParamList, "PlantJournal">) => (
+                  <PlantJournalScreen
+                    session={session}
+                    plantId={props.route.params.plantId}
+                    navigation={props.navigation}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="AddPlant" options={{ presentation: "modal" }}>
+                {(props: NativeStackScreenProps<RootStackParamList, "AddPlant">) => (
+                  <AddPlantScreen
+                    session={session}
+                    onPlantAdded={() => props.navigation.goBack()}
+                    onClose={() => props.navigation.goBack()}
+                  />
+                )}
+              </Stack.Screen>
+            </>
+          )
         ) : (
           <Stack.Screen name="Auth" component={AuthScreen} />
         )}
@@ -186,5 +279,39 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper,
     justifyContent: "center",
     alignItems: "center",
+  },
+  gateError: {
+    flex: 1,
+    backgroundColor: colors.paper,
+    justifyContent: "center",
+    paddingHorizontal: 28,
+  },
+  gateErrorTitle: {
+    fontFamily: "Spectral_600SemiBold",
+    fontSize: 26,
+    lineHeight: 32,
+    color: colors.ink,
+    textAlign: "center",
+  },
+  gateErrorBody: {
+    fontFamily: "HankenGrotesk_400Regular",
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.bark,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  gateRetryButton: {
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: colors.forest,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 24,
+  },
+  gateRetryText: {
+    fontFamily: "HankenGrotesk_600SemiBold",
+    fontSize: 16,
+    color: "#F1EFE4",
   },
 });

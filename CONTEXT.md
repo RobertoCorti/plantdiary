@@ -3,9 +3,144 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-06
 
+### Onboarding step 5 — six-screen flow and app routing (2026-09-06)
+- Implemented, reviewed, and approved by Roberto. Split into atomic local commits:
+  `c4c53a8` (complete frond draw), `21f7253` (shared Today plant card),
+  `24949cb` (onboarding plant form), `c874206` (calm onboarding screens), and
+  `2ab1e93` (account routing). These commits have not been pushed.
+- App now loads onboarding state for each authenticated account before choosing a
+  root route. Eligible accounts enter onboarding; completed accounts go to Today.
+  Account switches cannot briefly reuse another user's state. When neither the
+  server nor the device cache can determine eligibility, the app shows a retry
+  state instead of incorrectly treating a returning account as new.
+- Added the six screens from the visual spec: animated Welcome; a swipeable
+  Premise / Schedule suggestion / Diary pager; the onboarding variant
+  of First Plant; and an honest Done screen. Skip, Later, and Go to Today complete
+  onboarding. Each completed pager transition saves the reached screen. Reduced
+  motion renders final states and switches pages immediately.
+- The Schedule screen uses the approved behavior the app actually supports: an
+  explicitly labeled example comparing 7d with a proposed 9d based on six logged
+  waterings, plus illustrated Keep/Update choices. It makes no percentage or
+  error-range claim. Done shows the real saved plant, `0 waterings logged`, and
+  no invented schedule or status.
+- AddPlantScreen now accepts a mode while sharing the same upload, identification,
+  `createPlant`, first-photo journal event, unknown last-watered default, and retry
+  path. Its onboarding layout makes photo/species optional, focuses the name, and
+  keeps camera permission behind Take photo. The normal add-plant route retains
+  its existing content and behavior.
+- Extracted PlantCard from Today's attention/unknown card and reused it on Done.
+  Real name, optional species/photo, watering history, and calculated status are
+  shown in both places. Day-zero copy now reads `Watered today` when applicable.
+- Interrupted `done` state reloads the saved plant by ID and offers retry or a safe
+  route to Today if the record cannot be fetched. An already saved plant is not
+  inserted again. Add another plant completes onboarding before opening the normal
+  form; cancellation returns to Today.
+- Verification: `npm run typecheck`, all 26 Node tests, `git diff --check`, and an
+  Expo iOS production export pass. The new test ensures an uncached account cannot
+  be misclassified during a server failure. Simulator control was denied by the
+  computer-use permission system, so layout, gestures, keyboard, larger text,
+  reduced motion, camera/gallery, and the real new-account journey remain pending
+  manual device review.
+- Roberto's first device review found that the welcome mark stopped after the
+  spiral and that pager transitions felt rough. The path was measured at 152.86
+  SVG units; both launch and onboarding draw animations now use a shared 153-unit
+  dash instead of the unsupported 100-unit normalization. Roberto then approved a
+  calm overlapping fade: the outgoing page fades for 450ms, the incoming surface
+  settles by 3px, and its heading/body appear on separate delays over roughly 1.2s.
+  The same transition covers Welcome to the first slide, the three pager pages,
+  the last slide to First Plant, and First Plant to Done. The onboarding plant
+  header keeps Later but no longer shows the redundant `STEP 1 OF 1` label.
+- Final verification: TypeScript, all 26 Node tests, `git diff --check`, and an Expo
+  iOS production export pass. Roberto approved the logo, pager motion, boundary
+  fades, and First Plant header during simulator review. Larger text, reduced-motion
+  device behavior, camera/gallery, and a complete real-account journey still need
+  the planned cross-platform verification pass.
+- Process note from Roberto: this step grew to roughly 1,000 changed lines. Split
+  future implementation into smaller approved and committed slices before editing
+  (flow shell, individual content groups, shared components, then wiring), even
+  when they belong to one feature.
+- Next after approval: step 6 adds minimal Settings with Enable watering reminders
+  and Replay onboarding, then the full cross-platform verification pass.
+
+### Onboarding step 4 — account state and interrupted-flow recovery (2026-09-06)
+- Approved and committed locally as `f98c9bd` (`feat: persist onboarding progress
+  per account`). Migration `00007_onboarding_state.sql` was applied manually by
+  Roberto and its four `profiles.onboarding_*` columns were verified. The commit
+  has not been pushed.
+- Added manual migration `00007_onboarding_state.sql`. It adds the named current
+  step, completion timestamp, onboarding plant ID, and state-update timestamp to
+  `profiles`. Every auth account that exists when the migration runs is backfilled
+  as complete, including accounts that were missing a profile row. A small guarded
+  auth trigger creates an eligible profile for each future account. Existing RLS
+  continues to restrict each user to their own row.
+- Added `src/lib/onboarding.ts` with helpers to load state, save the furthest step
+  and recovered plant, and complete/skip onboarding. State is cached per user in
+  Expo SecureStore. Server completion and the furthest progress win when local and
+  server state differ; local offline completion is pushed to Supabase on the next
+  successful load. Replay progress does not clear an existing completion timestamp.
+- Added the `onboarding` logger tag and four focused tests covering returning-user
+  exemption, offline resume, later completion sync, and plant recovery without
+  clearing completion.
+- Verification at commit: `npm run typecheck`, all 25 Node tests, and
+  `git diff --check` passed. Real offline/device/server behavior remains pending.
+
+### Signup email confirmation and mobile callback (2026-09-06)
+- Approved and committed locally as `55b7a9f` (`fix: complete signup email
+  confirmation in app`). The commit has not been pushed.
+- Signup now supplies `plantdiary://auth/callback` as `emailRedirectTo`. The Expo
+  app declares the `plantdiary` scheme, handles both implicit-token and PKCE-code
+  callbacks, establishes the Supabase session, and surfaces invalid/expired link
+  errors. This native configuration requires a fresh development/preview build;
+  Expo Go is not the target for the end-to-end callback test.
+- When email confirmation is required and signup returns no session, AuthScreen
+  now shows a clear Check your email state with the target address, resend, and
+  Use a different email. Resends use the same mobile callback. Passwords are set
+  during signup and are never sent by email.
+- **Required Supabase configuration:** add the exact URL
+  `plantdiary://auth/callback` under Authentication > URL Configuration > Redirect
+  URLs before testing. The existing Site URL may stay as the web fallback. If the
+  email template was customized, confirm that its confirmation link uses
+  `.ConfirmationURL`; otherwise Supabase can still discard the requested redirect.
+- During testing, Supabase returned `email rate limit exceeded`. Its built-in mail
+  provider currently permits only two auth emails per project per hour and is not
+  suitable for production. Wait for the quota to refill for the next test; configure
+  custom SMTP before external testing or release. No Supabase dashboard setting or
+  SMTP provider was changed in this code step.
+- Verification: `npm run typecheck`, all 21 Node tests, `git diff --check`, and
+  resolved Expo configuration pass. The callback tests cover unrelated links,
+  implicit tokens, PKCE codes, provider errors, and malformed links. A real email,
+  OS deep link, and resulting device session remain pending until the Supabase
+  redirect allowlist is configured and the mail quota refills.
+
+### Onboarding step 3 — contextual permission timing (2026-09-06)
+- Approved and committed locally as `3d5457c` (`refactor: request permissions only
+  in context`). No migration or dependency change. The commit has not been pushed.
+- App startup now calls `syncPushTokenIfAuthorized()`: it reads notification
+  permission without prompting, refreshes the Expo token only when already granted,
+  and preserves the existing profile upsert. New users see no push prompt after
+  signup. `enablePushNotifications()` is the explicit request path reserved for
+  the Settings action in step 6; until then, users who have never granted push
+  cannot enable it from the app.
+- Automatic Today weather and event weather now use `getHomeCoords()` only.
+  Removed `resolveHomeCoords()`, which previously fell back to GPS and could open
+  a location prompt. When no home pin exists, Today shows Set home location and
+  events save with null weather. Existing home pins still load weather silently.
+- `HomeLocationSheet` remains the sole GPS permission path: the prompt follows an
+  explicit Use current location tap. City search still needs no GPS permission.
+  AddPlantScreen remains the sole camera permission path after Take photo.
+- Verification: `npm run typecheck`, `git diff --check`, and all 17 Node tests pass.
+  New tests verify silent push sync never calls the permission request, explicit
+  enablement can request it, existing authorization refreshes a token, events skip
+  weather without a home pin, and saved home coordinates attach weather. Tests use
+  mocked native/database calls; real OS prompts, device tokens, and backend writes
+  remain unverified. No deployment or native build performed.
+- Pending: device checks after the onboarding/Settings flow exists. Step 4 account
+  gating and interrupted-flow recovery is next. The merged step 2 reminder change
+  still requires a separate Edge Function deployment to affect live notifications.
+
 ### Onboarding step 2 — honest starting watering history (2026-09-06)
 - Committed as `fed4b7a` (feat: handle unknown watering history honestly) and
-  pushed to `origin/dev/onboarding`. No migration required.
+  merged to main in PR #6. No migration required.
 - AddPlantScreen uses LastWateredField: Today / A few days / Not sure, default null.
   A few days opens the system date picker; only explicit confirmation changes the
   value, cancellation preserves it, and future days cannot be selected. iOS uses
@@ -70,15 +205,20 @@
   is recorded above.
 
 ### One-time onboarding — assessment and agreed plan (2026-09-06)
-- **Status: steps 1 and 2 committed on `dev/onboarding` (not yet PR'd to main);
-  steps 3–6 pending.** `dev/onboarding` is 3 commits ahead of `main`. Roberto
+- **Status: steps 1 and 2 merged to main in PR #6; steps 3, signup confirmation,
+  and 4 committed locally; migration 00007 applied; step 5 implemented locally;
+  step 6 pending.**
+  `dev/onboarding` and `main` both started this step at merge
+  commit `4fc0d12`. Roberto
   approved the six decisions below individually, then approved recording them
   here. This does not authorize implementation or commits: continue the atomic
   approval workflow in AGENTS.md for each change.
 - Objective: help newly registered users understand why logging matters and start
   their own plant diary. Six screens after signup and before Today: Welcome,
   Premise, Schedule suggestion (revised Honest AI), Diary, First plant, Done.
-  Registration and AuthScreen remain unchanged. No permission screen.
+  Registration was originally outside the onboarding scope. AuthScreen and app
+  callback handling now have a separate prerequisite fix for email confirmation,
+  documented above. No permission screen.
 - Visual reference: `/Users/roberto/Desktop/visual specs.pdf` (six pages, reviewed).
   Preserve its Loam styling, typography, layout direction, gentle motion, and
   accessibility requirements. The approved decisions below supersede conflicting
