@@ -37,3 +37,6 @@ jobs:
       - name: Check Edge Functions
         working-directory: supabase/functions
         run: deno task check
+      - name: Test Edge Functions
+        working-directory: supabase/functions
+        run: deno task test

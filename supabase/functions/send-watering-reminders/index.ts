@@ -1,5 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { authorizeSchedulerRequest } from "../_shared/scheduler-auth.ts";
+import {
+  getUtcScheduledWindow,
+  reserveScheduledNotification,
+  updateScheduledNotificationStatus,
+} from "../_shared/scheduled-notifications.ts";
 
 // Watering status logic — mirrors src/lib/watering.ts getWateringStatus()
 type WateringStatus = "water_today" | "check" | "ok" | "unknown";
@@ -33,22 +39,13 @@ function getWateringStatus(plant: Plant): WateringStatus {
 Deno.serve(async (req) => {
   // This function is meant to be called by pg_cron or a scheduled job.
   // It uses the service_role key to bypass RLS.
-
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      },
-    });
-  }
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authorizationError = authorizeSchedulerRequest(req, supabaseServiceKey);
+  if (authorizationError) return authorizationError;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey!);
 
     // Fetch all profiles that have a push token
     const { data: profiles, error: profilesError } = await supabase
@@ -66,11 +63,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    const scheduledFor = getUtcScheduledWindow();
     const pushMessages: Array<{
-      to: string;
-      title: string;
-      body: string;
-      data?: Record<string, unknown>;
+      deliveryId: string;
+      message: {
+        to: string;
+        title: string;
+        body: string;
+        data?: Record<string, unknown>;
+      };
     }> = [];
 
     // For each user, fetch their plants and compute watering status
@@ -111,11 +112,22 @@ Deno.serve(async (req) => {
         );
       }
 
+      const deliveryId = await reserveScheduledNotification(
+        supabase,
+        "watering-reminders",
+        profile.id,
+        scheduledFor,
+      );
+      if (!deliveryId) continue;
+
       pushMessages.push({
-        to: profile.push_token,
-        title: "PlantDiary",
-        body: parts.join(" · "),
-        data: { screen: "Home" },
+        deliveryId,
+        message: {
+          to: profile.push_token,
+          title: "PlantDiary",
+          body: parts.join(" · "),
+          data: { screen: "Home" },
+        },
       });
     }
 
@@ -137,13 +149,23 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify(batch),
+        body: JSON.stringify(batch.map(({ message }) => message)),
       });
 
       if (!pushResp.ok) {
         const errText = await pushResp.text();
-        console.error(`Expo Push API error: ${pushResp.status} ${errText}`);
+        await updateScheduledNotificationStatus(
+          supabase,
+          batch.map(({ deliveryId }) => deliveryId),
+          "failed",
+        );
+        throw new Error(`Expo Push API error: ${pushResp.status} ${errText}`);
       } else {
+        await updateScheduledNotificationStatus(
+          supabase,
+          batch.map(({ deliveryId }) => deliveryId),
+          "submitted",
+        );
         totalSent += batch.length;
       }
     }
