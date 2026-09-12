@@ -12,6 +12,8 @@ one primary responsibility:
   from this log to a GitHub issue without replacing the original feedback.
 - [`WORKFLOW.md`](WORKFLOW.md) defines how issues move through branches, pull
   requests, verification, and collaboration with an AI coding agent.
+- [`OPERATIONS.md`](OPERATIONS.md) contains manual production procedures for
+  migrations, deployments, hosted services, verification, and rollback.
 
 Repository-level documents remain at the project root:
 
