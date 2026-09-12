@@ -1,7 +1,30 @@
 # PlantDiary — Context for Claude Code
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-06
+## Last session: 2026-09-12
+
+### Production launch tracking and development workflow (2026-09-12)
+- GitHub Project
+  [PlantDiary - Prod Launch](https://github.com/users/RobertoCorti/projects/4)
+  is now the working queue for production readiness. GitHub Issues describe the
+  actionable work; Project fields organize execution; milestones group work by
+  release.
+- Created production-readiness issues #8-#22 from the code and documentation
+  audit. Ten target the `Production beta` milestone and five target `Public v1`.
+- Project items use Status (`Todo`, `In Progress`, `Done`), Priority (`P0`, `P1`,
+  `P2`), Area, Effort (`XS`, `S`, `M`, `L`), and Target (`Production beta`,
+  `Public v1`, `Later`). Area supports Mobile, Backend, Security, Release,
+  Product/AI, and Docs. These Project fields are the primary classification
+  system; repository labels remain optional.
+- Added `WORKFLOW.md` as the operational guide and linked it from `README.md`.
+  The default delivery unit is one issue -> one branch -> one pull request.
+- `WORKFLOW.md` also records the tool-neutral AI coding-agent collaboration
+  sequence: approve scope before edits, approve the verified result separately,
+  then approve the exact commit message before committing. The agent must stop
+  for material scope changes, clearly report blockers and manual steps, and must
+  not silently move to the next issue.
+- Documentation changes are on branch `docs/project-workflow` and are awaiting
+  the approved commit.
 
 ### Onboarding step 5 — six-screen flow and app routing (2026-09-06)
 - Implemented, reviewed, and approved by Roberto. Split into atomic local commits:

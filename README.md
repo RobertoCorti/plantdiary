@@ -4,6 +4,9 @@ A mobile app that helps plant owners keep their plants alive and thriving. Unlik
 
 **One-line pitch:** Strava for your plants — track, learn, improve.
 
+See [WORKFLOW.md](WORKFLOW.md) for the issue, branch, pull request, and AI
+coding-agent collaboration process.
+
 ## Tech Stack
 
 - **Mobile:** React Native + Expo (TypeScript)
