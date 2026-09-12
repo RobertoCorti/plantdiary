@@ -89,7 +89,7 @@ const EVENT_LABELS: Record<PlantEvent["event_type"], string> = {
 };
 
 // proposeFrequency() doesn't yet return variance, so error-days come from the
-// confidence tier rather than a computed IQR. Values match DESIGN.md §5.2.
+// confidence tier rather than a computed IQR. Values match docs/DESIGN.md §5.2.
 const CONFIDENCE_TIER: Record<
   FrequencyProposal["confidence"],
   { fillPercent: number; errorDays: number }

@@ -1,7 +1,37 @@
-# PlantDiary — Context for Claude Code
+# PlantDiary — Context for AI Coding Agents
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-06
+## Last session: 2026-09-12
+
+### Production launch tracking and development workflow (2026-09-12)
+- GitHub Project
+  [PlantDiary - Prod Launch](https://github.com/users/RobertoCorti/projects/4)
+  is now the working queue for production readiness. GitHub Issues describe the
+  actionable work; Project fields organize execution; milestones group work by
+  release.
+- Created production-readiness issues #8-#22 from the code and documentation
+  audit. Ten target the `Production beta` milestone and five target `Public v1`.
+- Project items use Status (`Todo`, `In Progress`, `Done`), Priority (`P0`, `P1`,
+  `P2`), Area, Effort (`XS`, `S`, `M`, `L`), and Target (`Production beta`,
+  `Public v1`, `Later`). Area supports Mobile, Backend, Security, Release,
+  Product/AI, and Docs. These Project fields are the primary classification
+  system; repository labels remain optional.
+- Added `docs/WORKFLOW.md` as the operational guide and linked it from
+  `README.md`.
+  The default delivery unit is one issue -> one branch -> one pull request.
+- `docs/WORKFLOW.md` also records the tool-neutral AI coding-agent collaboration
+  sequence: approve scope before edits, approve the verified result separately,
+  then approve the exact commit message before committing. The agent must stop
+  for material scope changes, clearly report blockers and manual steps, and must
+  not silently move to the next issue.
+- Active supporting documents now live under `docs/`: the PRD, design system,
+  tester-feedback log, and development workflow. `docs/README.md` defines their
+  responsibilities. `docs/FEEDBACK.md` remains an active log, not an archive.
+- `AGENTS.md` is the canonical, tool-neutral coding-agent instruction file.
+  `CLAUDE.md` remains as a one-line compatibility pointer to it.
+- The initial workflow guide was committed and pushed on branch
+  `docs/project-workflow` as `4cde46a`. The follow-up documentation organization
+  on the same branch is awaiting review and an approved commit.
 
 ### Onboarding step 5 — six-screen flow and app routing (2026-09-06)
 - Implemented, reviewed, and approved by Roberto. Split into atomic local commits:
@@ -573,8 +603,8 @@
 - `supabase/functions/generate-journal/index.ts` (new, deployed): text-only Claude (`claude-sonnet-4-6`). Uses an **RLS-scoped client** (forwards the caller's `Authorization` JWT via `global.headers`, `auth.getUser()` for `user_id`) — not service_role. **Checks the cache first** (`journal_entries` row for the period) and returns it without calling Anthropic — never re-bills on re-view. Fetches that month's events (UTC month range `[start, nextMonth)`), builds a data-grounded prompt (counts, intervals, `weather` JSONB, `ai_analysis`), fence-strips + parses JSON `{ "narrative": string }`, inserts, returns `{ period, narrative, created_at, cached }`. Returns 400 if the month has no events.
 - `src/types/index.ts`: added `JournalEntry` type (`period`, `narrative`, `created_at`).
 - `src/screens/PlantJournalScreen.tsx`: replaced the placeholder "This month" card with a **Story** section — events grouped by UTC month (`created_at.slice(0,7)`, newest first). Per month: cached narrative if present, else a tap-to-generate affordance (POST to `generate-journal` with the user's access token); `BreathingMark` spinner while generating; errors via `Alert`. Wired the previously-unused `session` prop for the token.
-- **Decision — manual generate button, not auto-on-open** (DESIGN.md §5.3 floated auto-generation): keeps cost opt-in per CONTEXT's "don't re-bill" rule. DESIGN.md permits an affordance either way.
-- **DESIGN.md §5.3 polish** (same session): month rendered as an editorial Spectral dateline (SemiBold 17); generate button switched to the §4 secondary-outline pattern (`surface` bg, `sageBorder`, radius `md`, forest 15); added an honest mono "Written {date}" footnote under each entry (uses stored `created_at`). Rest of the screen (segmented stats row, horizontal photo strip, milestone context) already conformed.
+- **Decision — manual generate button, not auto-on-open** (`docs/DESIGN.md` §5.3 floated auto-generation): keeps cost opt-in per CONTEXT's "don't re-bill" rule. `docs/DESIGN.md` permits an affordance either way.
+- **`docs/DESIGN.md` §5.3 polish** (same session): month rendered as an editorial Spectral dateline (SemiBold 17); generate button switched to the §4 secondary-outline pattern (`surface` bg, `sageBorder`, radius `md`, forest 15); added an honest mono "Written {date}" footnote under each entry (uses stored `created_at`). Rest of the screen (segmented stats row, horizontal photo strip, milestone context) already conformed.
 - Verified in Simulator: generated a real June narrative grounded in actual data (7 waterings, the N2 2→4-day schedule change, weather, the `monitor` photo check-in). TypeScript compiles cleanly (`npx tsc --noEmit`).
 
 #### Housekeeping (2026-08-30)
@@ -648,7 +678,7 @@ Build order, not user-facing priority. Full rationale in PRD §7.
 - **N1.5 — Weather column on `plant_events`.** ✅ Complete (verified 2026-06-14). `weather` JSONB populated by `captureWeather()` on every `logEvent`/`logWatering`. Day 30 moment is now calendar-counting from here.
 - **N2 — AI Learning (per-plant watering frequency).** ✅ Complete (verified 2026-06-18). Median-based proposal, count-based confidence, structural honesty (numbers not prose), no silent change. Personal model now exists.
 - **N3 — Event-triggered Advisor.** 🟡 Code-complete (2026-06-20), pending end-to-end verify. v1 = heatwave trigger only. New `send-advisor-tips` edge function + `advisor-tips.yml` cron + coords on `profiles`. Surfaces only when forecast + plant state intersect; silent otherwise. Reads N2's learned `watering_frequency_days`. See N3 section above for pending manual steps.
-- **N4 — Plant Journal View.** ✅ Complete. No-AI half (2026-06-20): milestone feed + photo gallery + stats, client-computed from `plant_events`. Narrative half (2026-08-30): monthly Claude narrative via `generate-journal` edge function + cached `journal_entries` table, tap-to-generate, DESIGN.md-aligned Story section. See both N4 sections above.
+- **N4 — Plant Journal View.** ✅ Complete. No-AI half (2026-06-20): milestone feed + photo gallery + stats, client-computed from `plant_events`. Narrative half (2026-08-30): monthly Claude narrative via `generate-journal` edge function + cached `journal_entries` table, tap-to-generate, `docs/DESIGN.md`-aligned Story section. See both N4 sections above.
 - **N5 — Slow-drift detector.** Replaces the cut 1–10 health score. Compares latest photo to 4–6 week rolling baseline; direction + evidence, no scalar.
 - **Small wins (parallel):** plant ID correction loop ("this isn't right" affordance); care stats milestone cards.
 - **Cut:** 1–10 health score (fake precision, violates honest-AI). Daily-cadence advisor (forces padding). **Shared Plants / multi-user ownership (cut 2026-06-18 — keeping app single-user).**
@@ -785,6 +815,7 @@ plantdiary/
 ├── app.json                 # Expo config (incl. android.package, eas.projectId)
 ├── app.config.js            # Wraps app.json; allows GOOGLE_SERVICES_JSON env override for EAS
 ├── eas.json                 # EAS build profiles: development (APK + dev client), preview, production
+├── docs/                    # PRD, design system, tester feedback, and workflow guide
 ├── .env                     # Supabase credentials (gitignored)
 └── CONTEXT.md               # This file
 ```

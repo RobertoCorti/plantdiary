@@ -4,6 +4,10 @@ A mobile app that helps plant owners keep their plants alive and thriving. Unlik
 
 **One-line pitch:** Strava for your plants — track, learn, improve.
 
+See the [documentation index](docs/README.md) for product, design, feedback, and
+development guides. The [development workflow](docs/WORKFLOW.md) covers issues,
+branches, pull requests, and AI coding-agent collaboration.
+
 ## Tech Stack
 
 - **Mobile:** React Native + Expo (TypeScript)
@@ -82,5 +86,8 @@ plantdiary/
 ├── supabase/
 │   └── migrations/
 │       └── 00001_initial_schema.sql
+├── docs/                    # Product, design, feedback, and workflow guides
+├── AGENTS.md                # Canonical AI coding-agent instructions
+├── CLAUDE.md                # Claude compatibility pointer to AGENTS.md
 └── CONTEXT.md               # Session memory for development
 ```

@@ -191,8 +191,8 @@ The roadmap is ordered so that every feature compounds the personal model (Strat
 | Small wins | **Plant ID correction loop** | "This isn't right" affordance on plant profile that re-prompts identification or lets user override species | A wrong species at add-time poisons every downstream recommendation. Cheap to add, high leverage. |
 | Small wins | **Care stats milestone cards** | "100 days with Giorgio. 14 waterings, 2 fertilizings, 1 scare survived." | Screenshot-worthy. All counters on existing data. <1 day. |
 | Deferred | Seasonal adjustment | Automatic — N2 will pick this up from history once we have a full year of data. Not a separate feature. |
-| Deferred | Community / social | Out of scope per AGENTS.md (no social features). |
-| Deferred | Plant shop integration | Out of scope per AGENTS.md (no marketplace). |
+| Deferred | Community / social | Out of scope per `../AGENTS.md` (no social features). |
+| Deferred | Plant shop integration | Out of scope per `../AGENTS.md` (no marketplace). |
 | **Cut** | **Shared Plants** (was N6) | Multi-user ownership on a plant. Cut 2026-06-18 — keeping the app single-user. The personal-model differentiator stands on its own without multi-tenancy, and removing it simplifies the schema (no join table for plant ownership) and the auth model. Revisit only if usage data shows real demand. |
 
 ### 7.1 North Star — the Day 30 moment
@@ -357,7 +357,7 @@ Rules to follow to keep the project healthy and reach completion.
 
 **Rule 3 — Only commit working code** Never `git commit` if the app doesn't start or a feature is half-built. A commit is a checkpoint — it must represent a stable state. Work on `dev`, merge to `main` only when the milestone is complete and tested.
 
-**Rule 4 — Update CONTEXT.md every session** It's the project's memory. If you skip this two sessions in a row, Claude Code starts making inconsistent decisions and the code diverges. 5 minutes at the end of a session saves hours of debugging.
+**Rule 4 — Update `../CONTEXT.md` every session** It's the project's memory. If you skip this two sessions in a row, Claude Code starts making inconsistent decisions and the code diverges. 5 minutes at the end of a session saves hours of debugging.
 
 **Rule 5 — Understand before moving on** If Claude Code writes code you don't understand, ask it to explain immediately: _"Explain what this function does and why you implemented it this way."_ A project you don't understand is a project you can't debug.
 

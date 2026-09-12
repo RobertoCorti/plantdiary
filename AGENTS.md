@@ -17,6 +17,17 @@ this approval sequence for each atomic change, including documentation:
 - Before ending the session, update CONTEXT.md with what was done and what
   remains pending. Include that documentation edit in the approval workflow.
 
+# Documentation Sources
+
+- Read `CONTEXT.md` before writing code. It is the current implementation and
+  session-handoff source of truth.
+- Read `docs/PRD.md` for product scope, priorities, and the Day 30 specification.
+- Read `docs/DESIGN.md` before making visual or interaction changes.
+- Read `docs/FEEDBACK.md` when working from tester reports or verifying whether a
+  reported problem has already been addressed.
+- Follow `docs/WORKFLOW.md` for issues, branches, pull requests, verification,
+  and the approval sequence used when working with Roberto.
+
 # Product Vision & Differentiation
 
 PlantDiary is NOT a generic plant care app. The differentiator is contextual
@@ -41,7 +52,7 @@ Every feature should serve one of these goals:
 
 ## North star: the Day 30 moment
 
-30 days after a plant is added, the app surfaces a single full-screen card showing first/latest photo, the user's actual watering interval vs species default, a weather sparkline of the dryest week, and a proposed frequency update with confidence. Full spec in PRD §7.1. Every roadmap item ladders up to this convergence.
+30 days after a plant is added, the app surfaces a single full-screen card showing first/latest photo, the user's actual watering interval vs species default, a weather sparkline of the dryest week, and a proposed frequency update with confidence. Full spec in `docs/PRD.md` §7.1. Every roadmap item ladders up to this convergence.
 
 ## Feature priorities (build order, revised 2026-06-09)
 
@@ -53,7 +64,7 @@ Every feature should serve one of these goals:
 - **N5**: Slow-drift detector (replaces 1–10 health score) — direction + evidence, no scalar
 - Small wins (parallel): plant ID correction loop; care stats milestone cards
 
-**Cut:** 1–10 health score (fake precision), daily-cadence advisor (forces padding), Shared Plants / multi-user ownership (cut 2026-06-18 — keeping the app single-user; personal-model differentiator stands alone). See PRD §7 for full rationale.
+**Cut:** 1–10 health score (fake precision), daily-cadence advisor (forces padding), Shared Plants / multi-user ownership (cut 2026-06-18 — keeping the app single-user; personal-model differentiator stands alone). See `docs/PRD.md` §7 for full rationale.
 
 ## What NOT to build
 - Social features, sharing, community
@@ -100,7 +111,7 @@ xhr.send(formData);
 - **Log weather on every `plant_event`** (`weather` JSONB column). Not optional — context cannot be backfilled. Use existing `fetchWeather()` and write silently.
 - AI responses should always be stored (`ai_analysis` column) for future learning
 
-# Claude Code Session Rules
+# AI Coding Agent Session Rules
 
 1. ONE objective per session. Read it from the session prompt, do not scope-creep.
 2. Read CONTEXT.md before writing any code. It is the source of truth.
