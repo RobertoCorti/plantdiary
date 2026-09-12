@@ -3,6 +3,33 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-12
 
+### Issue #11 — secure Supabase notification scheduling (2026-09-12)
+- Work is on branch `issue/11-secure-supabase-cron` in three approved commits:
+  `71b917f` secures scheduled Edge Function calls, `31bb3b5` prevents duplicate
+  scheduled notifications, and `44d6ff1` adds the Supabase Cron schedule and
+  production operations guide.
+- `send-advisor-tips` and `send-watering-reminders` now accept only POST requests
+  carrying the exact service-role key in the `apikey` header. The GitHub Actions
+  callers send that credential and fail visibly on non-success HTTP responses.
+- Migration `00008_scheduled_notification_deliveries.sql` adds a service-only
+  ledger with one reservation per job, user, and UTC day. This prevents duplicate
+  sends while GitHub Actions and Supabase Cron overlap during the cutover.
+- Migration `00009_schedule_notification_jobs.sql` schedules advisor tips at
+  07:00 UTC and watering reminders at 08:00 UTC. It reads the project URL and
+  service-role key from Supabase Vault; no real project URL or secret is stored in
+  the repository.
+- `docs/OPERATIONS.md` documents the manual migration, Vault, function deployment,
+  authorization test, Cron verification, cutover, and rollback procedure.
+- Verification passed: TypeScript, 26 Node tests, Deno checks for all Edge
+  Functions, 12 Deno scheduler tests, whitespace checks, and a committed-secret
+  scan. The hosted SQL, deployments, and real scheduled execution cannot be
+  verified locally.
+- No hosted Supabase action has been performed. After the pull request is merged,
+  Roberto must apply migrations `00008` then `00009`, deploy both functions,
+  configure Vault/Cron, and verify a real scheduled run. Keep the GitHub schedules
+  enabled until both Supabase jobs are proven successful; remove their schedule
+  triggers in a follow-up change only after that verification.
+
 ### Production launch tracking and development workflow (2026-09-12)
 - GitHub Project
   [PlantDiary - Prod Launch](https://github.com/users/RobertoCorti/projects/4)
