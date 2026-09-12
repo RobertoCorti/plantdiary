@@ -11,10 +11,11 @@ applies to Roberto and any AI coding agent working on PlantDiary.
   is the working queue and shows what is planned, active, and complete.
 - GitHub milestones group issues by release: **Production beta** or
   **Public v1**.
-- `PRD.md` defines the product direction and priorities.
-- `CONTEXT.md` records the current implementation state, decisions, and pending
-  work.
-- `AGENTS.md` defines mandatory repository instructions for coding agents.
+- [`PRD.md`](PRD.md) defines the product direction and priorities.
+- [`CONTEXT.md`](../CONTEXT.md) records the current implementation state,
+  decisions, and pending work.
+- [`AGENTS.md`](../AGENTS.md) defines mandatory repository instructions for
+  coding agents.
 
 When these sources disagree, stop and resolve the inconsistency before
 implementation. Do not silently choose one interpretation.
