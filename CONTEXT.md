@@ -3,14 +3,13 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-13
 
-### Issue #8 — SDK 57 dependencies committed; configuration pending (2026-09-13)
+### Issue #8 — SDK 57 code complete; native verification pending (2026-09-13)
 - Work is on `fix/8-upgrade-expo`. Roberto approved SDK 57 as the upgrade
   target. Documentation commit `b674caa` updates the versioned documentation
   requirement in `AGENTS.md` to SDK 57.
 - Approved dependency commit `009544e` updates `package.json` and its lockfile:
   Expo 57.0.22, React Native 0.86.3, Reanimated 4.5.1, Worklets 0.10.1, and
-  compatible Expo packages and Babel preset. App configuration is unchanged.
-  Neither commit has been pushed.
+  compatible Expo packages and Babel preset.
 - Baseline verification: TypeScript and all 26 Node tests passed. Online Expo
   dependency validation reported ten version mismatches. Expo Doctor passed 17
   of 22 checks and flags those mismatches, missing `react-native-worklets`, the
@@ -20,21 +19,25 @@
 - Expo's SDK 57 release notes document fixes for the memory regression in
   `expo@57.0.9` and later, and development startup regression in `57.0.17` and
   later: https://expo.dev/changelog/sdk-57#known-regressions.
-- Verification after dependency alignment: TypeScript, all 26 Node tests,
-  `git diff --check`, online Expo dependency validation, and Android/iOS
+- Approved configuration commit `dcf46d9` moves the legacy splash settings to
+  the supported `expo-splash-screen` plugin, adds SecureStore Android backup
+  handling, and makes `app.config.js` extend Expo's supplied base configuration.
+  The local Firebase path and `GOOGLE_SERVICES_JSON` override both resolve as
+  intended. The runtime status-bar behavior remains unchanged.
+- Final code verification: TypeScript, all 26 Node tests, `git diff --check`,
+  online Expo dependency validation, Expo Doctor (21/21), and Android/iOS
   production bundle exports passed. Bundle exports do not verify native builds
-  or device behavior. Expo Doctor now passes 19 of 21 checks; remaining failures
-  are the legacy `splash` field and static/dynamic configuration handling.
-- The installer also requested `expo-secure-store` and `expo-status-bar` config
-  plugins, which need investigation in the configuration step. npm reported
-  23 dependency vulnerabilities (19 moderate, 4 high); these have not been
-  assessed and no automatic audit fixes were applied.
-- Next: propose the configuration fixes as a separate atomic change, preserving
-  the intended splash appearance and Firebase configuration override. Fresh
-  native builds and manual verification remain pending. Issue #8 is incomplete.
+  or device behavior. npm reported 23 dependency vulnerabilities (19 moderate,
+  4 high); these have not been assessed and no automatic audit fixes were
+  applied.
+- Next: create fresh native builds. Issue #8 remains incomplete until the
+  required manual checks pass.
 - Roberto will personally test on the iOS simulator and his Android phone.
-  The agent runs automated checks and supplies a focused manual checklist;
+  The checklist covers launch/splash, auth, navigation, camera/photo selection,
+  and notifications. The agent runs automated checks and supplies the checklist;
   manual verification remains pending until Roberto reports the results.
+- Commits `b674caa`, `009544e`, `d4ba1a3`, and `dcf46d9` are local and have not
+  been pushed.
 
 ### Issue #11 — scheduler authentication correction (2026-09-13)
 - PR #24 merged the original issue #11 implementation into `main`: secured POST
