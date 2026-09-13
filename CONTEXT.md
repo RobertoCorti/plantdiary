@@ -3,6 +3,29 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-13
 
+### Issue #8 — Expo compatibility diagnosis and approved target (2026-09-13)
+- Work started on `fix/8-upgrade-expo`. Roberto approved SDK 57 as the upgrade
+  target; the installed app still uses SDK 56. No dependency or app configuration
+  changes have been made yet.
+- Baseline verification: TypeScript and all 26 Node tests pass. Online Expo
+  dependency validation reports ten version mismatches. Expo Doctor passes 17
+  of 22 checks and flags those mismatches, missing `react-native-worklets`, the
+  legacy `splash` field, static/dynamic configuration handling, and a known
+  Hermes V1 memory regression. The configuration-handling warning needs further
+  investigation because `app.config.js` already imports `app.json`.
+- Expo's SDK 57 release notes document fixes for the memory regression in
+  `expo@57.0.9` and later, and development startup regression in `57.0.17` and
+  later: https://expo.dev/changelog/sdk-57#known-regressions.
+- Updated the versioned documentation requirement in `AGENTS.md` to SDK 57.
+  This documentation step is awaiting Roberto's result review, followed by
+  separate commit-message approval.
+- Next: propose dependency alignment with SDK 57 and the required worklets
+  package, then address configuration findings in separately approved steps.
+  Fresh native builds and manual verification remain pending.
+- Roberto will personally test on the iOS simulator and his Android phone.
+  The agent runs automated checks and supplies a focused manual checklist;
+  manual verification remains pending until Roberto reports the results.
+
 ### Issue #11 — scheduler authentication correction (2026-09-13)
 - PR #24 merged the original issue #11 implementation into `main`: secured POST
   entry points, failure-visible GitHub callers, the service-only delivery ledger
