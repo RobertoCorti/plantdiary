@@ -1,6 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { authorizeSchedulerRequest } from "../_shared/scheduler-auth.ts";
+import {
+  authorizeSchedulerRequest,
+  schedulerDryRunResponse,
+} from "../_shared/scheduler-auth.ts";
 import {
   getUtcScheduledWindow,
   reserveScheduledNotification,
@@ -86,13 +89,22 @@ function joinNames(names: string[]): string {
 }
 
 Deno.serve(async (req) => {
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const authorizationError = authorizeSchedulerRequest(req, supabaseServiceKey);
+  const schedulerSecret = Deno.env.get("PLANTDIARY_SCHEDULER_SECRET");
+  const authorizationError = authorizeSchedulerRequest(req, schedulerSecret);
   if (authorizationError) return authorizationError;
 
+  const dryRunResponse = schedulerDryRunResponse(req);
+  if (dryRunResponse) return dryRunResponse;
+
   try {
+    // Database-wide processing uses the runtime's internal service-role key;
+    // callers never authenticate by matching this value.
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseServiceKey) {
+      throw new Error("Supabase service-role credential is not configured");
+    }
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey!);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Only users who have both a push token and known coordinates can get a tip.
     const { data: profiles, error: profilesError } = await supabase

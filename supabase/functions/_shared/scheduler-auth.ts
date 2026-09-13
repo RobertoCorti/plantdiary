@@ -14,26 +14,39 @@ function errorResponse(
 /**
  * Authorize a privileged service-to-service scheduler request.
  *
- * Supabase Cron and the temporary GitHub schedules send the service-role key in
- * the `apikey` header. Requiring that exact server-side credential prevents an
- * anonymous or ordinary user JWT from triggering database-wide processing.
+ * Supabase Cron and the temporary GitHub schedules send a dedicated shared
+ * secret in the `x-scheduler-secret` header. The gateway credential and the
+ * function's internal database credential stay separate from trigger access.
  */
 export function authorizeSchedulerRequest(
   req: Request,
-  expectedServiceRoleKey: string | undefined,
+  expectedSchedulerSecret: string | undefined,
 ): Response | null {
   if (req.method !== "POST") {
     return errorResponse(405, "Method not allowed", { Allow: "POST" });
   }
 
-  if (!expectedServiceRoleKey) {
+  if (!expectedSchedulerSecret) {
     return errorResponse(500, "Scheduler authentication is not configured");
   }
 
-  const providedKey = req.headers.get("apikey");
-  if (!providedKey || providedKey !== expectedServiceRoleKey) {
+  const providedSecret = req.headers.get("x-scheduler-secret");
+  if (!providedSecret || providedSecret !== expectedSchedulerSecret) {
     return errorResponse(401, "Unauthorized");
   }
 
   return null;
+}
+
+/**
+ * Return a side-effect-free success response for rollout verification.
+ * Authorization must be checked before calling this helper.
+ */
+export function schedulerDryRunResponse(req: Request): Response | null {
+  if (req.headers.get("x-scheduler-dry-run") !== "true") return null;
+
+  return new Response(
+    JSON.stringify({ authorized: true, dry_run: true }),
+    { headers: JSON_HEADERS },
+  );
 }
