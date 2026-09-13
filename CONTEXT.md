@@ -1,34 +1,41 @@
 # PlantDiary — Context for AI Coding Agents
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-12
+## Last session: 2026-09-13
 
-### Issue #11 — secure Supabase notification scheduling (2026-09-12)
-- Work is on branch `issue/11-secure-supabase-cron` in three approved commits:
-  `71b917f` secures scheduled Edge Function calls, `31bb3b5` prevents duplicate
-  scheduled notifications, and `44d6ff1` adds the Supabase Cron schedule and
-  production operations guide.
-- `send-advisor-tips` and `send-watering-reminders` now accept only POST requests
-  carrying the exact service-role key in the `apikey` header. The GitHub Actions
-  callers send that credential and fail visibly on non-success HTTP responses.
-- Migration `00008_scheduled_notification_deliveries.sql` adds a service-only
-  ledger with one reservation per job, user, and UTC day. This prevents duplicate
-  sends while GitHub Actions and Supabase Cron overlap during the cutover.
-- Migration `00009_schedule_notification_jobs.sql` schedules advisor tips at
-  07:00 UTC and watering reminders at 08:00 UTC. It reads the project URL and
-  service-role key from Supabase Vault; no real project URL or secret is stored in
-  the repository.
-- `docs/OPERATIONS.md` documents the manual migration, Vault, function deployment,
-  authorization test, Cron verification, cutover, and rollback procedure.
-- Verification passed: TypeScript, 26 Node tests, Deno checks for all Edge
-  Functions, 12 Deno scheduler tests, whitespace checks, and a committed-secret
-  scan. The hosted SQL, deployments, and real scheduled execution cannot be
-  verified locally.
-- No hosted Supabase action has been performed. After the pull request is merged,
-  Roberto must apply migrations `00008` then `00009`, deploy both functions,
-  configure Vault/Cron, and verify a real scheduled run. Keep the GitHub schedules
-  enabled until both Supabase jobs are proven successful; remove their schedule
-  triggers in a follow-up change only after that verification.
+### Issue #11 — scheduler authentication correction (2026-09-13)
+- PR #24 merged the original issue #11 implementation into `main`: secured POST
+  entry points, failure-visible GitHub callers, the service-only delivery ledger
+  in migration `00008`, and the first Supabase Cron definitions in migration
+  `00009`.
+- During the manual hosted rollout, an anon-key request correctly returned `401`.
+  A valid, unexpired service-role JWT for the correct project passed the Supabase
+  gateway but was rejected by the function's exact comparison with its internal
+  `SUPABASE_SERVICE_ROLE_KEY`. The precise reason the two valid representations
+  differed was not established; the equality-based trigger authentication was
+  treated as brittle and the rollout stopped.
+- Roberto had already applied `00009`, then used the documented rollback to
+  unschedule both jobs. A follow-up query returned zero matching `cron.job` rows,
+  so no Supabase notification schedule is active. Migration `00008` and its
+  delivery-ledger table remain valid.
+- Corrective work is on branch `fix/11-scheduler-secret-auth`: `334c17d` uses a
+  dedicated `PLANTDIARY_SCHEDULER_SECRET` header check and adds side-effect-free
+  dry runs; `77a471f` moves GitHub and Cron callers to an anon gateway credential
+  plus the scheduler secret and adds migration `00010_use_scheduler_secret.sql`;
+  `1a78f2d` adds the gated recovery runbook.
+- The service-role credential now stays inside the Edge Functions for database
+  access. An authorized request with `x-scheduler-dry-run: true` returns before
+  database reads, delivery reservations, external requests, or notifications.
+  Migration `00010` supersedes the applied-and-unscheduled `00009` definitions
+  without rewriting migration history.
+- Verification passed: TypeScript, 26 Node tests, Deno checks for every Edge
+  Function, 14 Deno scheduler tests, YAML parsing, whitespace checks, and secret
+  scans. The hosted custom-secret, Vault, `pg_net`, and Cron paths remain untested.
+- No corrective code has been deployed and migration `00010` has not been
+  applied. Next: review and merge the fix PR, then follow `docs/OPERATIONS.md` in
+  order. Configure the GitHub secrets before merging, prove both HTTP and
+  database-originated dry runs before applying `00010`, and keep GitHub schedules
+  enabled until both Supabase jobs complete a real scheduled run successfully.
 
 ### Production launch tracking and development workflow (2026-09-12)
 - GitHub Project
