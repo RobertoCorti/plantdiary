@@ -3,50 +3,49 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-19
 
-### Issue #8 — SDK 57 code complete; native verification pending (updated 2026-09-19)
-- Work is on `fix/8-upgrade-expo`. Roberto approved SDK 57 as the upgrade
-  target. Documentation commit `b674caa` updates the versioned documentation
-  requirement in `AGENTS.md` to SDK 57.
-- Approved dependency commit `009544e` updates `package.json` and its lockfile:
-  Expo 57.0.22, React Native 0.86.3, Reanimated 4.5.1, Worklets 0.10.1, and
-  compatible Expo packages and Babel preset.
-- Baseline verification: TypeScript and all 26 Node tests passed. Online Expo
-  dependency validation reported ten version mismatches. Expo Doctor passed 17
-  of 22 checks and flags those mismatches, missing `react-native-worklets`, the
-  legacy `splash` field, static/dynamic configuration handling, and a known
-  Hermes V1 memory regression. The configuration-handling warning needs further
-  investigation because `app.config.js` already imports `app.json`.
-- Expo's SDK 57 release notes document fixes for the memory regression in
-  `expo@57.0.9` and later, and development startup regression in `57.0.17` and
-  later: https://expo.dev/changelog/sdk-57#known-regressions.
-- Approved configuration commit `dcf46d9` moves the legacy splash settings to
-  the supported `expo-splash-screen` plugin, adds SecureStore Android backup
-  handling, and makes `app.config.js` extend Expo's supplied base configuration.
-  The local Firebase path and `GOOGLE_SERVICES_JSON` override both resolve as
-  intended. The runtime status-bar behavior remains unchanged.
-- Final code verification: TypeScript, all 26 Node tests, `git diff --check`,
-  online Expo dependency validation, Expo Doctor (21/21), and Android/iOS
-  production bundle exports passed. Bundle exports do not verify native builds
-  or device behavior. npm reported 23 dependency vulnerabilities (19 moderate,
-  4 high); these have not been assessed and no automatic audit fixes were
-  applied.
+### Issue #8 — SDK 57 finalized and native-verified (updated 2026-09-19)
+- PR #26 merged the original `fix/8-upgrade-expo` work into `main` at merge
+  commit `9ac9d00`. It upgrades the app to SDK 57, moves native settings to the
+  supported Expo plugins, and preserves the existing runtime behavior. Issue #8
+  remains open and its project item is In Progress until the follow-up PR merges.
+- Follow-up work is on `fix/8-finalize-expo-57`. Commit `d09fd25` aligns the
+  remaining SDK patches: Expo 57.0.24, Expo Constants 57.0.19, Expo Image Picker
+  57.0.19, Expo Location 57.0.19, and Expo Notifications 57.0.20. React Native
+  remains 0.86.3, Reanimated 4.5.1, and Worklets 0.10.1.
+- Commit `7a7c021` pins project tooling to Node 24 through `.nvmrc` and the
+  `package.json` `engines` field. Local Expo CLI startup hung before Metro opened
+  port 8081 under Node 25.4.0; the same command under Node 24.19.0 started Metro,
+  installed Expo Go, and served the app successfully.
+- Commit `bfcfdbf` adds a `preview-simulator` EAS profile that extends `preview`
+  and produces an installable iOS Simulator build. The existing Android preview
+  profile continues to produce an APK.
+- Final automated verification passed under Node 24: Expo dependency validation,
+  Expo Doctor (21/21), TypeScript, all 26 Node tests, `git diff --check`, and iOS
+  and Android production bundle exports. Bundle exports do not verify native
+  builds or device behavior. npm reports 20 dependency vulnerabilities (16
+  moderate, 4 high); they have not been assessed and no automatic audit fixes
+  were applied.
 - On 2026-09-19, the app launched successfully in Expo Go 57.0.9 on an iPhone
   17 simulator and Roberto confirmed the app works. Metro completed the iOS
   development bundle without a runtime error. This verifies the basic SDK 57
   JavaScript launch path, not the app's native splash or SecureStore settings.
-- Local `npx expo start --ios --go` hung before Metro opened port 8081 under
-  Node 25.4.0. Running the same local Expo CLI under Node 24.19.0 started Metro,
-  installed Expo Go, and served the app. Use Node 22 or 24 for remaining Expo
-  work; do not use Node 25 for this project. The startup check also reported
-  newer Expo 57 patches, so dependency validation must be rerun before closure.
-- Next: create fresh native builds. Issue #8 remains incomplete until the
-  required manual checks pass.
-- Roberto will personally test on the iOS simulator and his Android phone.
-  The checklist covers launch/splash, auth, navigation, camera/photo selection,
-  and notifications. The agent runs automated checks and supplies the checklist;
-  manual verification remains pending until Roberto reports the results.
-- Commits `b674caa`, `009544e`, `d4ba1a3`, `dcf46d9`, and `bf82014` are local
-  and have not been pushed.
+- Fresh EAS builds from commit `bfcfdbf` completed successfully: iOS Simulator
+  build `da029c6d-e316-46a2-a3f4-8efb379c99dd` and Android preview APK build
+  `efb3ef83-42cb-490f-8ece-b092956249d1`. The standalone iOS build was installed
+  and launched on the iPhone 17 simulator.
+- Roberto completed the native checklist on the iPhone 17 simulator and his
+  Android phone and reported that both platforms pass. The checklist covered
+  launch/splash, auth persistence, navigation, camera/photo selection, reminder
+  permission flow, and replaying onboarding.
+- EAS warned that iOS does not declare
+  `ios.infoPlist.ITSAppUsesNonExemptEncryption`; App Store Connect will require
+  the encryption question until this release metadata is configured. Android
+  warned that the ignored local `google-services.json` was not uploaded, but the
+  preview APK built and the manual checklist passed. These warnings did not block
+  issue #8's native compatibility verification.
+- The original commits are merged through PR #26. Follow-up commits `d09fd25`,
+  `7a7c021`, and `bfcfdbf` are pushed on `fix/8-finalize-expo-57`; the branch is
+  ready for its follow-up PR after this context update is committed and pushed.
 
 ### Issue #11 — scheduler authentication correction (2026-09-13)
 - PR #24 merged the original issue #11 implementation into `main`: secured POST
