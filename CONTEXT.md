@@ -1,7 +1,52 @@
 # PlantDiary — Context for AI Coding Agents
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-13
+## Last session: 2026-09-19
+
+### Issue #8 — SDK 57 code complete; native verification pending (updated 2026-09-19)
+- Work is on `fix/8-upgrade-expo`. Roberto approved SDK 57 as the upgrade
+  target. Documentation commit `b674caa` updates the versioned documentation
+  requirement in `AGENTS.md` to SDK 57.
+- Approved dependency commit `009544e` updates `package.json` and its lockfile:
+  Expo 57.0.22, React Native 0.86.3, Reanimated 4.5.1, Worklets 0.10.1, and
+  compatible Expo packages and Babel preset.
+- Baseline verification: TypeScript and all 26 Node tests passed. Online Expo
+  dependency validation reported ten version mismatches. Expo Doctor passed 17
+  of 22 checks and flags those mismatches, missing `react-native-worklets`, the
+  legacy `splash` field, static/dynamic configuration handling, and a known
+  Hermes V1 memory regression. The configuration-handling warning needs further
+  investigation because `app.config.js` already imports `app.json`.
+- Expo's SDK 57 release notes document fixes for the memory regression in
+  `expo@57.0.9` and later, and development startup regression in `57.0.17` and
+  later: https://expo.dev/changelog/sdk-57#known-regressions.
+- Approved configuration commit `dcf46d9` moves the legacy splash settings to
+  the supported `expo-splash-screen` plugin, adds SecureStore Android backup
+  handling, and makes `app.config.js` extend Expo's supplied base configuration.
+  The local Firebase path and `GOOGLE_SERVICES_JSON` override both resolve as
+  intended. The runtime status-bar behavior remains unchanged.
+- Final code verification: TypeScript, all 26 Node tests, `git diff --check`,
+  online Expo dependency validation, Expo Doctor (21/21), and Android/iOS
+  production bundle exports passed. Bundle exports do not verify native builds
+  or device behavior. npm reported 23 dependency vulnerabilities (19 moderate,
+  4 high); these have not been assessed and no automatic audit fixes were
+  applied.
+- On 2026-09-19, the app launched successfully in Expo Go 57.0.9 on an iPhone
+  17 simulator and Roberto confirmed the app works. Metro completed the iOS
+  development bundle without a runtime error. This verifies the basic SDK 57
+  JavaScript launch path, not the app's native splash or SecureStore settings.
+- Local `npx expo start --ios --go` hung before Metro opened port 8081 under
+  Node 25.4.0. Running the same local Expo CLI under Node 24.19.0 started Metro,
+  installed Expo Go, and served the app. Use Node 22 or 24 for remaining Expo
+  work; do not use Node 25 for this project. The startup check also reported
+  newer Expo 57 patches, so dependency validation must be rerun before closure.
+- Next: create fresh native builds. Issue #8 remains incomplete until the
+  required manual checks pass.
+- Roberto will personally test on the iOS simulator and his Android phone.
+  The checklist covers launch/splash, auth, navigation, camera/photo selection,
+  and notifications. The agent runs automated checks and supplies the checklist;
+  manual verification remains pending until Roberto reports the results.
+- Commits `b674caa`, `009544e`, `d4ba1a3`, `dcf46d9`, and `bf82014` are local
+  and have not been pushed.
 
 ### Issue #11 — scheduler authentication correction (2026-09-13)
 - PR #24 merged the original issue #11 implementation into `main`: secured POST

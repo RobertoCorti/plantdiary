@@ -77,7 +77,7 @@ Every feature should serve one of these goals:
 
 ## Expo HAS CHANGED
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before writing any code.
+Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
 
 ## React Native / Expo
 - File uploads: NEVER use `fetch` + `Blob`, `ArrayBuffer`, or the Supabase storage client. These all fail in React Native / Expo Go. The ONLY reliable approach is `XMLHttpRequest` + `FormData` with a file URI object:
