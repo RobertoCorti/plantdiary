@@ -3,11 +3,11 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-19
 
-### Issue #8 — SDK 57 finalized; native verification pending (updated 2026-09-19)
+### Issue #8 — SDK 57 finalized and native-verified (updated 2026-09-19)
 - PR #26 merged the original `fix/8-upgrade-expo` work into `main` at merge
   commit `9ac9d00`. It upgrades the app to SDK 57, moves native settings to the
   supported Expo plugins, and preserves the existing runtime behavior. Issue #8
-  remains open and its project item is In Progress until native testing passes.
+  remains open and its project item is In Progress until the follow-up PR merges.
 - Follow-up work is on `fix/8-finalize-expo-57`. Commit `d09fd25` aligns the
   remaining SDK patches: Expo 57.0.24, Expo Constants 57.0.19, Expo Image Picker
   57.0.19, Expo Location 57.0.19, and Expo Notifications 57.0.20. React Native
@@ -16,6 +16,9 @@
   `package.json` `engines` field. Local Expo CLI startup hung before Metro opened
   port 8081 under Node 25.4.0; the same command under Node 24.19.0 started Metro,
   installed Expo Go, and served the app successfully.
+- Commit `bfcfdbf` adds a `preview-simulator` EAS profile that extends `preview`
+  and produces an installable iOS Simulator build. The existing Android preview
+  profile continues to produce an APK.
 - Final automated verification passed under Node 24: Expo dependency validation,
   Expo Doctor (21/21), TypeScript, all 26 Node tests, `git diff --check`, and iOS
   and Android production bundle exports. Bundle exports do not verify native
@@ -26,14 +29,23 @@
   17 simulator and Roberto confirmed the app works. Metro completed the iOS
   development bundle without a runtime error. This verifies the basic SDK 57
   JavaScript launch path, not the app's native splash or SecureStore settings.
-- Next: create fresh native builds. Issue #8 remains incomplete until the
-  required manual checks pass.
-- Roberto will personally test on the iOS simulator and his Android phone.
-  The checklist covers launch/splash, auth, navigation, camera/photo selection,
-  and notifications. The agent runs automated checks and supplies the checklist;
-  manual verification remains pending until Roberto reports the results.
-- The original commits are merged through PR #26. Follow-up commits `d09fd25`
-  and `7a7c021` are local and have not been pushed.
+- Fresh EAS builds from commit `bfcfdbf` completed successfully: iOS Simulator
+  build `da029c6d-e316-46a2-a3f4-8efb379c99dd` and Android preview APK build
+  `efb3ef83-42cb-490f-8ece-b092956249d1`. The standalone iOS build was installed
+  and launched on the iPhone 17 simulator.
+- Roberto completed the native checklist on the iPhone 17 simulator and his
+  Android phone and reported that both platforms pass. The checklist covered
+  launch/splash, auth persistence, navigation, camera/photo selection, reminder
+  permission flow, and replaying onboarding.
+- EAS warned that iOS does not declare
+  `ios.infoPlist.ITSAppUsesNonExemptEncryption`; App Store Connect will require
+  the encryption question until this release metadata is configured. Android
+  warned that the ignored local `google-services.json` was not uploaded, but the
+  preview APK built and the manual checklist passed. These warnings did not block
+  issue #8's native compatibility verification.
+- The original commits are merged through PR #26. Follow-up commits `d09fd25`,
+  `7a7c021`, and `bfcfdbf` are pushed on `fix/8-finalize-expo-57`; the branch is
+  ready for its follow-up PR after this context update is committed and pushed.
 
 ### Issue #11 — scheduler authentication correction (2026-09-13)
 - PR #24 merged the original issue #11 implementation into `main`: secured POST
