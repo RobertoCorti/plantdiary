@@ -39,6 +39,8 @@ import AddPlantScreen from "./src/screens/AddPlantScreen";
 import PlantProfileScreen from "./src/screens/PlantProfileScreen";
 import PlantJournalScreen from "./src/screens/PlantJournalScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
+import SettingsScreen from "./src/screens/SettingsScreen";
+import NotificationSettingsScreen from "./src/screens/NotificationSettingsScreen";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* already prevented */
@@ -51,6 +53,8 @@ export type RootStackParamList = {
   PlantJournal: { plantId: string };
   Auth: undefined;
   Onboarding: undefined;
+  Settings: undefined;
+  NotificationSettings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -260,6 +264,27 @@ export default function App() {
                     session={session}
                     onPlantAdded={() => props.navigation.goBack()}
                     onClose={() => props.navigation.goBack()}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="Settings">
+                {(props: NativeStackScreenProps<RootStackParamList, "Settings">) => (
+                  <SettingsScreen
+                    session={session}
+                    navigation={props.navigation}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="NotificationSettings">
+                {(
+                  props: NativeStackScreenProps<
+                    RootStackParamList,
+                    "NotificationSettings"
+                  >
+                ) => (
+                  <NotificationSettingsScreen
+                    session={session}
+                    navigation={props.navigation}
                   />
                 )}
               </Stack.Screen>

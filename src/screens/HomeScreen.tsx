@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Host, Icon } from "@expo/ui";
 import { useIsFocused } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Session } from "@supabase/supabase-js";
@@ -31,6 +32,11 @@ import { BreathingMark } from "../components/BreathingMark";
 import { WaterTap } from "../components/WaterTap";
 import { PlantCard } from "../components/PlantCard";
 import type { Plant, WateringStatus, WeatherData } from "../types";
+
+const settingsIcon = Icon.select({
+  ios: "gearshape",
+  android: import("@expo/material-symbols/settings.xml"),
+});
 
 type Props = {
   session: Session;
@@ -304,12 +310,25 @@ export default function HomeScreen({ session, navigation }: Props) {
             <Text style={styles.greeting}>Today</Text>
             <Text style={styles.dateSubtitle}>{formatTodayHeader()}</Text>
           </View>
-          <Pressable
-            style={styles.addButton}
-            onPress={() => navigation.navigate("AddPlant")}
-          >
-            <Text style={styles.addButtonText}>+ Plant</Text>
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              style={styles.settingsButton}
+              onPress={() => navigation.navigate("Settings")}
+              accessibilityRole="button"
+              accessibilityLabel="Open settings"
+              hitSlop={4}
+            >
+              <Host matchContents>
+                <Icon name={settingsIcon} size={21} color={colors.forest} />
+              </Host>
+            </Pressable>
+            <Pressable
+              style={styles.addButton}
+              onPress={() => navigation.navigate("AddPlant")}
+            >
+              <Text style={styles.addButtonText}>+ Plant</Text>
+            </Pressable>
+          </View>
         </View>
 
         {renderCareBridge()}
@@ -371,21 +390,6 @@ export default function HomeScreen({ session, navigation }: Props) {
           </>
         )}
 
-        <Pressable
-          style={styles.logoutButton}
-          onPress={() =>
-            Alert.alert("Log out", "Are you sure you want to log out?", [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Log out",
-                style: "destructive",
-                onPress: () => supabase.auth.signOut(),
-              },
-            ])
-          }
-        >
-          <Text style={styles.logoutText}>Log out</Text>
-        </Pressable>
       </ScrollView>
       <HomeLocationSheet
         visible={showHomeModal}
@@ -424,6 +428,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: spacing.lg,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  settingsButton: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.mist,
+    alignItems: "center",
+    justifyContent: "center",
   },
   greeting: {
     ...typography.display,
@@ -635,14 +654,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 
-  logoutButton: {
-    paddingVertical: spacing.base,
-    alignItems: "center",
-    marginTop: spacing.lg,
-  },
-  logoutText: {
-    fontFamily: fonts.hankenRegular,
-    fontSize: 14,
-    color: colors.muted,
-  },
 });
