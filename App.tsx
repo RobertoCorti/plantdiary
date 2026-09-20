@@ -27,7 +27,11 @@ import {
 } from "@expo-google-fonts/ibm-plex-mono";
 import { supabase } from "./src/lib/supabase";
 import { completeAuthCallback } from "./src/lib/auth";
-import { loadOnboardingState, type OnboardingState } from "./src/lib/onboarding";
+import {
+  createOnboardingReplayState,
+  loadOnboardingState,
+  type OnboardingState,
+} from "./src/lib/onboarding";
 import { syncPushTokenIfAuthorized } from "./src/lib/notifications";
 import { log } from "./src/lib/logger";
 import { colors } from "./src/lib/theme";
@@ -53,6 +57,7 @@ export type RootStackParamList = {
   PlantJournal: { plantId: string };
   Auth: undefined;
   Onboarding: undefined;
+  OnboardingReplay: undefined;
   Settings: undefined;
   NotificationSettings: undefined;
 };
@@ -211,6 +216,10 @@ export default function App() {
     );
   }
 
+  const replayState = onboardingState
+    ? createOnboardingReplayState(onboardingState)
+    : null;
+
   return (
     <NavigationContainer>
       <StatusBar style="dark" />
@@ -275,6 +284,20 @@ export default function App() {
                   />
                 )}
               </Stack.Screen>
+              {replayState ? (
+                <Stack.Screen name="OnboardingReplay">
+                  {(
+                    props: NativeStackScreenProps<RootStackParamList, "OnboardingReplay">
+                  ) => (
+                    <OnboardingScreen
+                      session={session}
+                      initialState={replayState}
+                      replay
+                      onFinished={() => props.navigation.goBack()}
+                    />
+                  )}
+                </Stack.Screen>
+              ) : null}
               <Stack.Screen name="NotificationSettings">
                 {(
                   props: NativeStackScreenProps<

@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useIsFocused } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { Session } from "@supabase/supabase-js";
+import { Host, Icon } from "@expo/ui";
 import Constants from "expo-constants";
 import Svg, { Circle, Path } from "react-native-svg";
 import type { RootStackParamList } from "../../App";
@@ -25,6 +26,11 @@ type Props = {
   session: Session;
   navigation: NativeStackNavigationProp<RootStackParamList, "Settings">;
 };
+
+const replayIcon = Icon.select({
+  ios: "arrow.counterclockwise",
+  android: import("@expo/material-symbols/restart_alt.xml"),
+});
 
 const STATUS_LABEL: Record<NotificationSetupState, string> = {
   not_enabled: "Not enabled",
@@ -118,6 +124,13 @@ export default function SettingsScreen({ session, navigation }: Props) {
               title="About PlantDiary"
               value={`Version ${Constants.expoConfig?.version ?? "1.0.0"}`}
             />
+            <SettingsRow
+              icon="replay"
+              title="Replay onboarding"
+              detail="See the introduction again"
+              divided
+              onPress={() => navigation.navigate("OnboardingReplay")}
+            />
           </View>
         </View>
 
@@ -168,18 +181,28 @@ function SettingsRow({
   value,
   status,
   onPress,
+  divided = false,
 }: {
-  icon: "bell" | "info";
+  icon: "bell" | "info" | "replay";
   title: string;
   detail?: string;
   value?: string;
   status?: NotificationSetupState | null;
   onPress?: () => void;
+  divided?: boolean;
 }) {
   const content = (
     <>
       <View style={styles.iconCircle}>
-        {icon === "bell" ? <BellIcon /> : <InfoIcon />}
+        {icon === "bell" ? (
+          <BellIcon />
+        ) : icon === "info" ? (
+          <InfoIcon />
+        ) : (
+          <Host matchContents>
+            <Icon name={replayIcon} size={19} color={colors.fern} />
+          </Host>
+        )}
       </View>
       <View style={styles.rowCopy}>
         <Text style={styles.rowTitle}>{title}</Text>
@@ -195,9 +218,10 @@ function SettingsRow({
     </>
   );
 
-  if (!onPress) return <View style={styles.row}>{content}</View>;
+  const rowStyle = [styles.row, divided && styles.rowDivider];
+  if (!onPress) return <View style={rowStyle}>{content}</View>;
   return (
-    <Pressable style={styles.row} onPress={onPress} accessibilityRole="button">
+    <Pressable style={rowStyle} onPress={onPress} accessibilityRole="button">
       {content}
     </Pressable>
   );
@@ -253,6 +277,7 @@ const styles = StyleSheet.create({
   sectionLabel: { ...typography.label, color: colors.fern, marginHorizontal: 2, marginBottom: 10 },
   group: { backgroundColor: colors.mist, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: "hidden" },
   row: { minHeight: 66, paddingHorizontal: spacing.base, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  rowDivider: { borderTopWidth: 1, borderTopColor: colors.line },
   accountRow: { minHeight: 82 },
   avatar: { width: 48, height: 48, borderRadius: radius.full, alignItems: "center", justifyContent: "center", backgroundColor: colors.forest },
   avatarText: { fontFamily: fonts.spectralSemiBold, fontSize: 18, color: "#F1EFE4" },

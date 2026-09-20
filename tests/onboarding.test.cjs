@@ -79,6 +79,22 @@ test("a returning account uses the completed server state", async () => {
   assert.equal(subject.writes.length, 0);
 });
 
+test("replay starts at welcome without changing completion or the saved plant", () => {
+  const subject = setup();
+  const completed = state({
+    step: "done",
+    completedAt: "2026-09-06T12:00:00.000Z",
+    plantId: "plant-1",
+  });
+  const replay = subject.createOnboardingReplayState(completed);
+
+  assert.equal(replay.step, "welcome");
+  assert.equal(replay.completedAt, completed.completedAt);
+  assert.equal(replay.plantId, completed.plantId);
+  assert.equal(replay.updatedAt, completed.updatedAt);
+  assert.equal(subject.writes.length, 0);
+});
+
 test("offline loading falls back to progress stored on this device", async () => {
   const local = state({ step: "diary", plantId: "plant-1" });
   const subject = setup({ local, readError: new Error("offline") });

@@ -20,6 +20,10 @@ export type OnboardingState = {
   updatedAt: string;
 };
 
+export function createOnboardingReplayState(state: OnboardingState): OnboardingState {
+  return { ...state, step: "welcome" };
+}
+
 type OnboardingRow = {
   onboarding_step: unknown;
   onboarding_completed_at: unknown;
