@@ -6,8 +6,7 @@
 ### Issue #8 — SDK 57 finalized and native-verified (updated 2026-09-19)
 - PR #26 merged the original `fix/8-upgrade-expo` work into `main` at merge
   commit `9ac9d00`. It upgrades the app to SDK 57, moves native settings to the
-  supported Expo plugins, and preserves the existing runtime behavior. Issue #8
-  remains open and its project item is In Progress until the follow-up PR merges.
+  supported Expo plugins, and preserves the existing runtime behavior.
 - Follow-up work is on `fix/8-finalize-expo-57`. Commit `d09fd25` aligns the
   remaining SDK patches: Expo 57.0.24, Expo Constants 57.0.19, Expo Image Picker
   57.0.19, Expo Location 57.0.19, and Expo Notifications 57.0.20. React Native
@@ -43,9 +42,9 @@
   warned that the ignored local `google-services.json` was not uploaded, but the
   preview APK built and the manual checklist passed. These warnings did not block
   issue #8's native compatibility verification.
-- The original commits are merged through PR #26. Follow-up commits `d09fd25`,
-  `7a7c021`, and `bfcfdbf` are pushed on `fix/8-finalize-expo-57`; the branch is
-  ready for its follow-up PR after this context update is committed and pushed.
+- PR #27 merged the follow-up commits into `main` at `6070de7`. Issue #8 is
+  closed as completed and its PlantDiary - Prod Launch project item is `Done`.
+  No SDK 57 compatibility work remains pending.
 
 ### Issue #11 — scheduler authentication correction (2026-09-13)
 - PR #24 merged the original issue #11 implementation into `main`: secured POST
