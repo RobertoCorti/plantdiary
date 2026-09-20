@@ -1,7 +1,32 @@
 # PlantDiary — Context for AI Coding Agents
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-19
+## Last session: 2026-09-20
+
+### Issue #13 — Settings with explicit notification opt-in (in progress 2026-09-20)
+- Work is on branch `issue/13-settings-notifications`. Commit `683b459`
+  (`feat: model notification setup states`) adds prompt-free notification status
+  inspection with honest `not_enabled`, `on`, `blocked`, `needs_attention`, and
+  `unavailable` states. It respects granular iOS authorization and keeps the
+  existing physical-device registration guard.
+- Commit `b789499` (`feat: add settings with explicit notification opt-in`) adds
+  authenticated Settings and Notification Settings routes. Settings contains
+  Account, Preferences, PlantDiary, version, and Log out sections; its compact
+  Notifications row opens a focused detail screen.
+- Notification Settings reads both OS permission and saved push registration,
+  requests permission only after an explicit Enable action, persists a successful
+  Expo push token to the profile, offers retry for recoverable failures, and opens
+  system settings when permission is already controlled by the OS or blocked.
+- Today links to Settings through a 44-point button using the native Apple
+  `gearshape` symbol on iOS and Material `settings` symbol on Android. Expo 57's
+  `@expo/ui` and `@expo/material-symbols` packages provide the platform symbols.
+- Verification passed under the available Node 25.4.0 shell: TypeScript, all 32
+  Node tests, `git diff --check`, and iOS and Android production bundle exports.
+  The project remains pinned to Node 24; manual permission, registration, and
+  system-settings behavior still needs cross-platform device verification.
+- Remaining issue #13 acceptance work: add an active Replay onboarding action in
+  Settings without clearing or corrupting the account's existing completion
+  timestamp. Implement and verify this as a separate approved atomic change.
 
 ### Issue #8 — SDK 57 finalized and native-verified (updated 2026-09-19)
 - PR #26 merged the original `fix/8-upgrade-expo` work into `main` at merge
