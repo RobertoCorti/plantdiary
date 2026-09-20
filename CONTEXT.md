@@ -3,7 +3,7 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-09-20
 
-### Issue #13 — Settings with explicit notification opt-in (in progress 2026-09-20)
+### Issue #13 — Settings with explicit notification opt-in (implementation complete 2026-09-20)
 - Work is on branch `issue/13-settings-notifications`. Commit `683b459`
   (`feat: model notification setup states`) adds prompt-free notification status
   inspection with honest `not_enabled`, `on`, `blocked`, `needs_attention`, and
@@ -20,13 +20,22 @@
 - Today links to Settings through a 44-point button using the native Apple
   `gearshape` symbol on iOS and Material `settings` symbol on Android. Expo 57's
   `@expo/ui` and `@expo/material-symbols` packages provide the platform symbols.
-- Verification passed under the available Node 25.4.0 shell: TypeScript, all 32
+- Commit `bfa99f4` (`feat: add onboarding replay to settings`) adds an active
+  Replay onboarding row. Replay starts at Welcome, shows only the introduction,
+  and returns to Settings on completion or Skip. It performs no onboarding
+  persistence, never opens plant creation, and preserves the account's completion
+  timestamp and saved onboarding plant. A focused test covers that replay state.
+- Verification passed under the available Node 25.4.0 shell: TypeScript, all 33
   Node tests, `git diff --check`, and iOS and Android production bundle exports.
-  The project remains pinned to Node 24; manual permission, registration, and
-  system-settings behavior still needs cross-platform device verification.
-- Remaining issue #13 acceptance work: add an active Replay onboarding action in
-  Settings without clearing or corrupting the account's existing completion
-  timestamp. Implement and verify this as a separate approved atomic change.
+  Roberto confirmed the Settings UI and replay entry in the iOS Simulator. The
+  project remains pinned to Node 24.
+- The Metro server that predated the new Expo UI packages initially retained a
+  stale Babel configuration and attempted to resolve the Android Material XML on
+  iOS. A full `npx expo start --clear` restart loaded Expo's icon transform and
+  resolved the development-only error; no corrective code change was needed.
+- Remaining before closing issue #13: verify the notification prompt, permission
+  states, push-token registration, retry path, and system-settings return on
+  physical iOS and Android devices. Simulators cannot complete push registration.
 
 ### Issue #8 — SDK 57 finalized and native-verified (updated 2026-09-19)
 - PR #26 merged the original `fix/8-upgrade-expo` work into `main` at merge
