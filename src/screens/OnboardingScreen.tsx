@@ -38,11 +38,17 @@ type Props = {
   session: Session;
   initialState: OnboardingState;
   onFinished: () => void;
+  replay?: boolean;
 };
 
 const INTRO_STEPS = ["premise", "schedule", "diary"] as const;
 
-export default function OnboardingScreen({ session, initialState, onFinished }: Props) {
+export default function OnboardingScreen({
+  session,
+  initialState,
+  onFinished,
+  replay = false,
+}: Props) {
   const reduceMotion = useReducedMotion();
   const [step, setStep] = useState<OnboardingStep>(initialState.step);
   const [plant, setPlant] = useState<Plant | null>(null);
@@ -74,10 +80,15 @@ export default function OnboardingScreen({ session, initialState, onFinished }: 
 
   async function advance(next: OnboardingStep) {
     setStep(next);
+    if (replay) return;
     await saveOnboardingProgress(supabase, session.user.id, next, plant?.id ?? null);
   }
 
   async function finish(plantId: string | null = plant?.id ?? null) {
+    if (replay) {
+      onFinished();
+      return;
+    }
     await completeOnboarding(supabase, session.user.id, plantId);
     onFinished();
   }
@@ -108,7 +119,7 @@ export default function OnboardingScreen({ session, initialState, onFinished }: 
         <IntroPager
           initialIndex={INTRO_STEPS.indexOf(step as (typeof INTRO_STEPS)[number])}
           onStep={(next) => advance(next)}
-          onFinished={() => advance("plant")}
+          onFinished={() => (replay ? onFinished() : advance("plant"))}
           onSkip={() => finish(null)}
         />
       </PhaseTransition>

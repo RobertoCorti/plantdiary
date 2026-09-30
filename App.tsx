@@ -27,7 +27,11 @@ import {
 } from "@expo-google-fonts/ibm-plex-mono";
 import { supabase } from "./src/lib/supabase";
 import { completeAuthCallback } from "./src/lib/auth";
-import { loadOnboardingState, type OnboardingState } from "./src/lib/onboarding";
+import {
+  createOnboardingReplayState,
+  loadOnboardingState,
+  type OnboardingState,
+} from "./src/lib/onboarding";
 import { syncPushTokenIfAuthorized } from "./src/lib/notifications";
 import { log } from "./src/lib/logger";
 import { colors } from "./src/lib/theme";
@@ -39,6 +43,8 @@ import AddPlantScreen from "./src/screens/AddPlantScreen";
 import PlantProfileScreen from "./src/screens/PlantProfileScreen";
 import PlantJournalScreen from "./src/screens/PlantJournalScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
+import SettingsScreen from "./src/screens/SettingsScreen";
+import NotificationSettingsScreen from "./src/screens/NotificationSettingsScreen";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* already prevented */
@@ -51,6 +57,9 @@ export type RootStackParamList = {
   PlantJournal: { plantId: string };
   Auth: undefined;
   Onboarding: undefined;
+  OnboardingReplay: undefined;
+  Settings: undefined;
+  NotificationSettings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -207,6 +216,10 @@ export default function App() {
     );
   }
 
+  const replayState = onboardingState
+    ? createOnboardingReplayState(onboardingState)
+    : null;
+
   return (
     <NavigationContainer>
       <StatusBar style="dark" />
@@ -260,6 +273,41 @@ export default function App() {
                     session={session}
                     onPlantAdded={() => props.navigation.goBack()}
                     onClose={() => props.navigation.goBack()}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="Settings">
+                {(props: NativeStackScreenProps<RootStackParamList, "Settings">) => (
+                  <SettingsScreen
+                    session={session}
+                    navigation={props.navigation}
+                  />
+                )}
+              </Stack.Screen>
+              {replayState ? (
+                <Stack.Screen name="OnboardingReplay">
+                  {(
+                    props: NativeStackScreenProps<RootStackParamList, "OnboardingReplay">
+                  ) => (
+                    <OnboardingScreen
+                      session={session}
+                      initialState={replayState}
+                      replay
+                      onFinished={() => props.navigation.goBack()}
+                    />
+                  )}
+                </Stack.Screen>
+              ) : null}
+              <Stack.Screen name="NotificationSettings">
+                {(
+                  props: NativeStackScreenProps<
+                    RootStackParamList,
+                    "NotificationSettings"
+                  >
+                ) => (
+                  <NotificationSettingsScreen
+                    session={session}
+                    navigation={props.navigation}
                   />
                 )}
               </Stack.Screen>

@@ -1,7 +1,56 @@
 # PlantDiary — Context for AI Coding Agents
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-19
+## Last session: 2026-09-30
+
+### Issue #13 — Settings with explicit notification opt-in (implementation complete 2026-09-20)
+- Work is on branch `issue/13-settings-notifications`. Commit `683b459`
+  (`feat: model notification setup states`) adds prompt-free notification status
+  inspection with honest `not_enabled`, `on`, `blocked`, `needs_attention`, and
+  `unavailable` states. It respects granular iOS authorization and keeps the
+  existing physical-device registration guard.
+- Commit `b789499` (`feat: add settings with explicit notification opt-in`) adds
+  authenticated Settings and Notification Settings routes. Settings contains
+  Account, Preferences, PlantDiary, version, and Log out sections; its compact
+  Notifications row opens a focused detail screen.
+- Notification Settings reads both OS permission and saved push registration,
+  requests permission only after an explicit Enable action, persists a successful
+  Expo push token to the profile, offers retry for recoverable failures, and opens
+  system settings when permission is already controlled by the OS or blocked.
+- Today links to Settings through a 44-point button using the native Apple
+  `gearshape` symbol on iOS and Material `settings` symbol on Android. Expo 57's
+  `@expo/ui` and `@expo/material-symbols` packages provide the platform symbols.
+- Commit `bfa99f4` (`feat: add onboarding replay to settings`) adds an active
+  Replay onboarding row. Replay starts at Welcome, shows only the introduction,
+  and returns to Settings on completion or Skip. It performs no onboarding
+  persistence, never opens plant creation, and preserves the account's completion
+  timestamp and saved onboarding plant. A focused test covers that replay state.
+- Verification passed under the available Node 25.4.0 shell: TypeScript, all 33
+  Node tests, `git diff --check`, and iOS and Android production bundle exports.
+  Roberto confirmed the Settings UI and replay entry in the iOS Simulator. The
+  project remains pinned to Node 24.
+- The Metro server that predated the new Expo UI packages initially retained a
+  stale Babel configuration and attempted to resolve the Android Material XML on
+  iOS. A full `npx expo start --clear` restart loaded Expo's icon transform and
+  resolved the development-only error; no corrective code change was needed.
+- Commit `b103c74` (`fix: configure native notification support`) adds the
+  `expo-notifications` config plugin required for native preview builds. The first
+  Android preview build (`e030fe74-de7e-4ef3-b282-e7853cf07f1f`) failed during
+  `npm ci`: npm selected `react-dom@19.3.0`, whose React peer requirement did not
+  match Expo 57's pinned React 19.2.3. The Firebase file was present through the
+  preview environment and was not the cause of the failure.
+- Commit `55efda0` (`fix: pin react dom for reproducible builds`) pins
+  `react-dom@19.2.3`, matching React and Expo SDK 57. An EAS-style clean install,
+  TypeScript, all 33 Node tests, Expo dependency validation, and `git diff
+  --check` pass with the corrected lockfile.
+- Android preview build `df15720a-5561-4719-9391-593fb89352d6` was produced from
+  the corrected dependency tree. On 2026-09-30, Roberto confirmed notifications
+  work on a physical Android device. This verifies the Android permission,
+  registration, and delivery path.
+- Remaining before closing issue #13: complete the physical iOS notification
+  check, including permission states, push-token registration, retry behavior,
+  and returning from system settings. Simulators cannot complete push
+  registration.
 
 ### Issue #8 — SDK 57 finalized and native-verified (updated 2026-09-19)
 - PR #26 merged the original `fix/8-upgrade-expo` work into `main` at merge

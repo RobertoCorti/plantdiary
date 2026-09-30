@@ -39,6 +39,7 @@
           "configureAndroidBackup": true
         }
       ],
+      "expo-notifications",
       "@react-native-community/datetimepicker"
     ],
     "extra": {

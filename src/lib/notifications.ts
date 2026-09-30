@@ -5,6 +5,105 @@ import { log } from "./logger";
 
 const isExpoGo = Constants.appOwnership === "expo";
 
+export type NotificationSetupState =
+  | "not_enabled"
+  | "on"
+  | "blocked"
+  | "needs_attention"
+  | "unavailable";
+
+export type NotificationSetupStatus = {
+  state: NotificationSetupState;
+  permission: "undetermined" | "granted" | "denied" | "unavailable";
+  registered: boolean;
+  unavailableReason?: "expo_go" | "physical_device_required" | "status_error";
+};
+
+type PermissionStatus = {
+  status: string;
+  ios?: { status: number };
+};
+
+type NotificationsModule = {
+  IosAuthorizationStatus?: {
+    NOT_DETERMINED: number;
+    DENIED: number;
+    AUTHORIZED: number;
+    PROVISIONAL: number;
+    EPHEMERAL: number;
+  };
+  getPermissionsAsync(): Promise<PermissionStatus>;
+};
+
+function permissionState(
+  Notifications: NotificationsModule,
+  status: PermissionStatus
+): "undetermined" | "granted" | "denied" {
+  const iosStatus = status.ios?.status;
+  const iosAuthorization = Notifications.IosAuthorizationStatus;
+
+  if (Platform.OS === "ios" && iosStatus !== undefined && iosAuthorization) {
+    if (iosStatus === iosAuthorization.NOT_DETERMINED) return "undetermined";
+    if (iosStatus === iosAuthorization.DENIED) return "denied";
+    return "granted";
+  }
+
+  if (status.status === "granted") return "granted";
+  if (status.status === "denied") return "denied";
+  return "undetermined";
+}
+
+/** Read the current reminder setup without ever opening a system prompt. */
+export async function getNotificationSetupStatus(
+  registered: boolean
+): Promise<NotificationSetupStatus> {
+  if (isExpoGo) {
+    return {
+      state: "unavailable",
+      permission: "unavailable",
+      registered,
+      unavailableReason: "expo_go",
+    };
+  }
+
+  if (!Device.isDevice) {
+    return {
+      state: "unavailable",
+      permission: "unavailable",
+      registered,
+      unavailableReason: "physical_device_required",
+    };
+  }
+
+  try {
+    const Notifications = require("expo-notifications") as NotificationsModule;
+    const permission = permissionState(
+      Notifications,
+      await Notifications.getPermissionsAsync()
+    );
+
+    if (permission === "undetermined") {
+      return { state: "not_enabled", permission, registered };
+    }
+    if (permission === "denied") {
+      return { state: "blocked", permission, registered };
+    }
+    return {
+      state: registered ? "on" : "needs_attention",
+      permission,
+      registered,
+    };
+  } catch (error) {
+    log.error("push", "Could not read notification status", error);
+    return {
+      state: "unavailable",
+      permission: "unavailable",
+      registered,
+      unavailableReason: "status_error",
+    };
+  }
+}
+
 async function getPushToken(requestPermission: boolean): Promise<string | null> {
   try {
     if (isExpoGo) {
@@ -19,11 +118,10 @@ async function getPushToken(requestPermission: boolean): Promise<string | null> 
 
     const Notifications = require("expo-notifications");
 
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
+    const existingPermission = await Notifications.getPermissionsAsync();
+    let finalPermission = permissionState(Notifications, existingPermission);
 
-    if (existingStatus !== "granted") {
+    if (finalPermission !== "granted") {
       if (!requestPermission) {
         log.info("push", "Permission not granted; waiting for user action");
         return null;
@@ -34,11 +132,11 @@ async function getPushToken(requestPermission: boolean): Promise<string | null> 
           importance: Notifications.AndroidImportance.MAX,
         });
       }
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+      const requestedPermission = await Notifications.requestPermissionsAsync();
+      finalPermission = permissionState(Notifications, requestedPermission);
     }
 
-    if (finalStatus !== "granted") {
+    if (finalPermission !== "granted") {
       log.warn("push", "Permission denied by user");
       return null;
     }
