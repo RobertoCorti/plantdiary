@@ -1,7 +1,7 @@
 # PlantDiary — Context for AI Coding Agents
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-20
+## Last session: 2026-09-30
 
 ### Issue #13 — Settings with explicit notification opt-in (implementation complete 2026-09-20)
 - Work is on branch `issue/13-settings-notifications`. Commit `683b459`
@@ -33,9 +33,24 @@
   stale Babel configuration and attempted to resolve the Android Material XML on
   iOS. A full `npx expo start --clear` restart loaded Expo's icon transform and
   resolved the development-only error; no corrective code change was needed.
-- Remaining before closing issue #13: verify the notification prompt, permission
-  states, push-token registration, retry path, and system-settings return on
-  physical iOS and Android devices. Simulators cannot complete push registration.
+- Commit `b103c74` (`fix: configure native notification support`) adds the
+  `expo-notifications` config plugin required for native preview builds. The first
+  Android preview build (`e030fe74-de7e-4ef3-b282-e7853cf07f1f`) failed during
+  `npm ci`: npm selected `react-dom@19.3.0`, whose React peer requirement did not
+  match Expo 57's pinned React 19.2.3. The Firebase file was present through the
+  preview environment and was not the cause of the failure.
+- Commit `55efda0` (`fix: pin react dom for reproducible builds`) pins
+  `react-dom@19.2.3`, matching React and Expo SDK 57. An EAS-style clean install,
+  TypeScript, all 33 Node tests, Expo dependency validation, and `git diff
+  --check` pass with the corrected lockfile.
+- Android preview build `df15720a-5561-4719-9391-593fb89352d6` was produced from
+  the corrected dependency tree. On 2026-09-30, Roberto confirmed notifications
+  work on a physical Android device. This verifies the Android permission,
+  registration, and delivery path.
+- Remaining before closing issue #13: complete the physical iOS notification
+  check, including permission states, push-token registration, retry behavior,
+  and returning from system settings. Simulators cannot complete push
+  registration.
 
 ### Issue #8 — SDK 57 finalized and native-verified (updated 2026-09-19)
 - PR #26 merged the original `fix/8-upgrade-expo` work into `main` at merge
