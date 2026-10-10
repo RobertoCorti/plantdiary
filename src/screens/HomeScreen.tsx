@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,6 +30,7 @@ import { EyebrowLabel } from "../components/EyebrowLabel";
 import { BreathingMark } from "../components/BreathingMark";
 import { WaterTap } from "../components/WaterTap";
 import { PlantCard } from "../components/PlantCard";
+import { SignedPhoto } from "../components/SignedPhoto";
 import type { Plant, WateringStatus, WeatherData } from "../types";
 
 const settingsIcon = Icon.select({
@@ -274,7 +274,10 @@ export default function HomeScreen({ session, navigation }: Props) {
         onPress={() => navigation.navigate("PlantProfile", { plantId: plant.id })}
       >
         {plant.photo_url ? (
-          <Image source={{ uri: plant.photo_url }} style={styles.thrivingImage} />
+          <SignedPhoto
+            reference={plant.photo_url}
+            style={styles.thrivingImage}
+          />
         ) : (
           <View style={[styles.thrivingImage, styles.imagePlaceholder]}>
             <Text style={styles.imagePlaceholderText}>🌱</Text>

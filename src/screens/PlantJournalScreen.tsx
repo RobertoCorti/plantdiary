@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,6 +23,7 @@ import {
 import { EyebrowLabel } from "../components/EyebrowLabel";
 import { EventIcon, iconForMilestone } from "../components/EventIcon";
 import { BreathingMark } from "../components/BreathingMark";
+import { SignedPhoto } from "../components/SignedPhoto";
 import type { JournalEntry, Milestone, Plant, PlantEvent } from "../types";
 import type { RootStackParamList } from "../../App";
 
@@ -264,7 +264,7 @@ export default function PlantJournalScreen({
           >
             {photos.map((p) => (
               <View key={p.id} style={styles.photoTile}>
-                <Image source={{ uri: p.uri }} style={styles.photoImage} />
+                <SignedPhoto reference={p.uri} style={styles.photoImage} />
                 <View style={styles.photoDateBadge}>
                   <Text style={styles.photoDateText}>{shortDate(p.date)}</Text>
                 </View>

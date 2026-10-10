@@ -1,9 +1,47 @@
 # PlantDiary — Context for AI Coding Agents
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-30
+## Last session: 2026-10-10
 
-### Issue #13 — Settings with explicit notification opt-in (implementation complete 2026-09-20)
+### Issue #10 — private plant photos (implemented and production-verified 2026-10-10)
+- Work is on branch `issue/10-private-plant-photos`, based on local `main` with
+  the approved Issue #13 verification note. The implementation is split into
+  five reviewed commits: `a9b92cf` (private photo reference helpers), `acbd171`
+  (signed photo rendering), `83a2e0f` (Storage-RLS-protected AI access),
+  `6610a64` (store object paths), and `5029786` (private Storage migration).
+- New uploads store bucket-relative object paths in the existing `photo_url`
+  columns. `SignedPhoto` creates one-hour signed URLs for display and refreshes
+  them before expiry. A compatibility parser keeps legacy public URL references
+  readable during the migration.
+- `identify-plant` and `analyze-plant` no longer fetch arbitrary photo URLs. The
+  shared photo loader accepts only paths in `plant-photos`, forwards the caller's
+  JWT to Supabase's authenticated Storage endpoint, and relies on the existing
+  user-folder RLS policies. Both updated functions were deployed to production
+  before the bucket access change.
+- Roberto manually applied `00011_private_plant_photos.sql`. It converted legacy
+  database references to object paths, made `plant-photos` private, and removed
+  the anonymous read policy while retaining authenticated upload, read, and
+  delete policies.
+- Pre-migration testing confirmed new-plant identification and photo check-in
+  analysis. Post-migration testing confirmed existing photos remain available,
+  new photo check-ins still upload, analyze, and display, and a real photo no
+  longer loads through the anonymous public Storage URL. The files remain
+  visible to project administrators in the Supabase Storage dashboard as
+  expected.
+- Automated verification passed before rollout: TypeScript, all 39 Node tests,
+  all 21 Deno tests, checks for every Edge Function, iOS and Android production
+  bundle exports, and `git diff --check`. Deno verification used the CI-pinned
+  Deno 2.9.6 package because Deno is not installed globally.
+- During verification, iCloud had evicted
+  `node_modules/typescript/lib/typescript.js`; the file appeared present but was
+  dataless, causing misleading test failures. `npm ci` restored the dependency
+  tree without changing tracked dependency files. The available shell remains
+  Node 25.4.0 while the project is pinned to Node 24.
+- Remaining delivery work: commit this context update, push the branch, open and
+  review the pull request, merge it, then close Issue #10 and move its project
+  item from In Progress to Done.
+
+### Issue #13 — Settings with explicit notification opt-in (verified complete 2026-10-10)
 - Work is on branch `issue/13-settings-notifications`. Commit `683b459`
   (`feat: model notification setup states`) adds prompt-free notification status
   inspection with honest `not_enabled`, `on`, `blocked`, `needs_attention`, and
@@ -47,10 +85,10 @@
   the corrected dependency tree. On 2026-09-30, Roberto confirmed notifications
   work on a physical Android device. This verifies the Android permission,
   registration, and delivery path.
-- Remaining before closing issue #13: complete the physical iOS notification
-  check, including permission states, push-token registration, retry behavior,
-  and returning from system settings. Simulators cannot complete push
-  registration.
+- On 2026-10-10, Roberto confirmed the physical iPhone notification check passed,
+  including the remaining iOS notification behavior that cannot be verified in a
+  simulator. Issue #13 satisfies its Android and iOS acceptance criteria. The
+  issue is closed and its PlantDiary - Prod Launch project item is `Done`.
 
 ### Issue #8 — SDK 57 finalized and native-verified (updated 2026-09-19)
 - PR #26 merged the original `fix/8-upgrade-expo` work into `main` at merge

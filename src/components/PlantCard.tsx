@@ -1,7 +1,8 @@
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { getWateringStatus, daysSinceWatered } from "../lib/watering";
 import { colors, fonts, radius, spacing, STATUS } from "../lib/theme";
 import type { Plant } from "../types";
+import { SignedPhoto } from "./SignedPhoto";
 import { StatusBadge } from "./StatusBadge";
 
 type Props = {
@@ -30,7 +31,7 @@ export function PlantCard({ plant, onPress, onWater, watering = false }: Props) 
       disabled={!onPress}
     >
       {plant.photo_url ? (
-        <Image source={{ uri: plant.photo_url }} style={styles.image} />
+        <SignedPhoto reference={plant.photo_url} style={styles.image} />
       ) : (
         <View style={[styles.image, styles.imagePlaceholder]}>
           <Text style={styles.imagePlaceholderText}>🌱</Text>

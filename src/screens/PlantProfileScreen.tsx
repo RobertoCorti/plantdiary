@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -36,6 +35,7 @@ import { ConfidenceBar } from "../components/ConfidenceBar";
 import { EventIcon, iconForEvent } from "../components/EventIcon";
 import { EyebrowLabel } from "../components/EyebrowLabel";
 import { BreathingMark } from "../components/BreathingMark";
+import { SignedPhoto } from "../components/SignedPhoto";
 import type {
   AIPhotoAnalysisResult,
   FrequencyProposal,
@@ -393,14 +393,14 @@ export default function PlantProfileScreen({
 
     try {
       const fileExt = uri.split(".").pop() ?? "jpg";
-      const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
+      const objectPath = `${session.user.id}/${Date.now()}.${fileExt}`;
       const contentType = `image/${fileExt === "jpg" ? "jpeg" : fileExt}`;
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 
       const formData = new FormData();
       formData.append("file", {
         uri,
-        name: fileName.split("/").pop(),
+        name: objectPath.split("/").pop(),
         type: contentType,
       } as unknown as Blob);
 
@@ -408,7 +408,7 @@ export default function PlantProfileScreen({
         const xhr = new XMLHttpRequest();
         xhr.open(
           "POST",
-          `${supabaseUrl}/storage/v1/object/plant-photos/${fileName}`
+          `${supabaseUrl}/storage/v1/object/plant-photos/${objectPath}`
         );
         xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
         xhr.setRequestHeader("apikey", process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!);
@@ -420,10 +420,6 @@ export default function PlantProfileScreen({
         xhr.onerror = () => reject(new Error("Upload network error"));
         xhr.send(formData);
       });
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("plant-photos").getPublicUrl(fileName);
 
       const recentEvents = events.slice(0, 5).map((e) => ({
         event_type: e.event_type,
@@ -439,7 +435,7 @@ export default function PlantProfileScreen({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          photo_url: publicUrl,
+          photo_path: objectPath,
           plant: { species: plant?.species, name: plant?.name },
           previous_events: recentEvents,
         }),
@@ -460,7 +456,7 @@ export default function PlantProfileScreen({
         session.user.id,
         "photo",
         undefined,
-        publicUrl,
+        objectPath,
         JSON.stringify(analysis)
       );
 
@@ -551,8 +547,8 @@ export default function PlantProfileScreen({
                 />
               </View>
             ) : (
-              <Image
-                source={{ uri: photoStrip.url }}
+              <SignedPhoto
+                reference={photoStrip.url}
                 style={styles.singlePhoto}
               />
             )}
@@ -849,7 +845,7 @@ function PhotoCell({
 }) {
   return (
     <View style={styles.photoCell}>
-      <Image source={{ uri }} style={styles.photoCellImage} />
+      <SignedPhoto reference={uri} style={styles.photoCellImage} />
       <Text style={styles.photoOverline}>{overline}</Text>
       <Text style={styles.photoCaption}>{caption}</Text>
     </View>
