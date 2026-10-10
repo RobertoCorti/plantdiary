@@ -8,7 +8,8 @@ type LogTag =
   | "nav"
   | "app"
   | "learning"
-  | "onboarding";
+  | "onboarding"
+  | "storage";
 
 function emit(level: LogLevel, tag: LogTag, message: string, data?: unknown) {
   const ts = new Date().toISOString().slice(11, 23);

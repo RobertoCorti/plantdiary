@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -36,6 +35,7 @@ import { ConfidenceBar } from "../components/ConfidenceBar";
 import { EventIcon, iconForEvent } from "../components/EventIcon";
 import { EyebrowLabel } from "../components/EyebrowLabel";
 import { BreathingMark } from "../components/BreathingMark";
+import { SignedPhoto } from "../components/SignedPhoto";
 import type {
   AIPhotoAnalysisResult,
   FrequencyProposal,
@@ -551,8 +551,8 @@ export default function PlantProfileScreen({
                 />
               </View>
             ) : (
-              <Image
-                source={{ uri: photoStrip.url }}
+              <SignedPhoto
+                reference={photoStrip.url}
                 style={styles.singlePhoto}
               />
             )}
@@ -849,7 +849,7 @@ function PhotoCell({
 }) {
   return (
     <View style={styles.photoCell}>
-      <Image source={{ uri }} style={styles.photoCellImage} />
+      <SignedPhoto reference={uri} style={styles.photoCellImage} />
       <Text style={styles.photoOverline}>{overline}</Text>
       <Text style={styles.photoCaption}>{caption}</Text>
     </View>
