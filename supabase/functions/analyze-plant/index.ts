@@ -1,6 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import {
+  fetchAuthenticatedPlantPhoto,
+  PhotoStorageError,
+} from "../_shared/photo-storage.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
 const SYSTEM_PROMPT = `You are analyzing a plant's health over time.
 Given the plant's species, care history, and a new photo, describe what you observe.
@@ -32,24 +38,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { photo_url, plant, previous_events } = await req.json();
+    const payload = await req.json();
+    const { plant, previous_events } = payload;
+    const imageResponse = await fetchAuthenticatedPlantPhoto(req, payload, {
+      supabaseUrl: SUPABASE_URL,
+      anonKey: SUPABASE_ANON_KEY,
+    });
 
-    if (!photo_url) {
-      return new Response(
-        JSON.stringify({ error: "photo_url is required" }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    // Fetch the image and convert to base64
-    const imageResponse = await fetch(photo_url);
-    if (!imageResponse.ok) {
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch image" }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
+    // Convert the authorized image to base64 for Anthropic.
     const imageBuffer = await imageResponse.arrayBuffer();
     const bytes = new Uint8Array(imageBuffer);
     let binary = "";
@@ -153,6 +149,15 @@ Deno.serve(async (req) => {
       },
     });
   } catch (error) {
+    if (error instanceof PhotoStorageError) {
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        {
+          status: error.status,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
     return new Response(
       JSON.stringify({
         error: "Internal error",
