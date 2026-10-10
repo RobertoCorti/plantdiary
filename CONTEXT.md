@@ -1,9 +1,9 @@
 # PlantDiary — Context for AI Coding Agents
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-09-30
+## Last session: 2026-10-10
 
-### Issue #13 — Settings with explicit notification opt-in (implementation complete 2026-09-20)
+### Issue #13 — Settings with explicit notification opt-in (verified complete 2026-10-10)
 - Work is on branch `issue/13-settings-notifications`. Commit `683b459`
   (`feat: model notification setup states`) adds prompt-free notification status
   inspection with honest `not_enabled`, `on`, `blocked`, `needs_attention`, and
@@ -47,10 +47,10 @@
   the corrected dependency tree. On 2026-09-30, Roberto confirmed notifications
   work on a physical Android device. This verifies the Android permission,
   registration, and delivery path.
-- Remaining before closing issue #13: complete the physical iOS notification
-  check, including permission states, push-token registration, retry behavior,
-  and returning from system settings. Simulators cannot complete push
-  registration.
+- On 2026-10-10, Roberto confirmed the physical iPhone notification check passed,
+  including the remaining iOS notification behavior that cannot be verified in a
+  simulator. Issue #13 now satisfies its Android and iOS acceptance criteria;
+  only closing the GitHub issue and moving its project item to Done remain.
 
 ### Issue #8 — SDK 57 finalized and native-verified (updated 2026-09-19)
 - PR #26 merged the original `fix/8-upgrade-expo` work into `main` at merge
