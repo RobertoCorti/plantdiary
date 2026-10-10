@@ -53,7 +53,7 @@ export default function AddPlantScreen({
 }: Props) {
   const [step, setStep] = useState<Step>("details");
   const [imageUri, setImageUri] = useState<string | null>(null);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<AIIdentificationResult | null>(null);
   const [nickname, setNickname] = useState("");
   const [species, setSpecies] = useState("");
@@ -100,7 +100,7 @@ export default function AddPlantScreen({
 
       if (!result.canceled && result.assets[0]) {
         const uri = result.assets[0].uri;
-        setPhotoUrl(null);
+        setPhotoPath(null);
         setAiResult(null);
         setImageUri(uri);
         setError(null);
@@ -126,7 +126,7 @@ export default function AddPlantScreen({
     let uploaded = false;
     try {
       const fileExt = uri.split(".").pop() ?? "jpg";
-      const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
+      const objectPath = `${session.user.id}/${Date.now()}.${fileExt}`;
 
       const contentType = `image/${fileExt === "jpg" ? "jpeg" : fileExt}`;
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -134,13 +134,13 @@ export default function AddPlantScreen({
       const formData = new FormData();
       formData.append("file", {
         uri,
-        name: fileName.split("/").pop(),
+        name: objectPath.split("/").pop(),
         type: contentType,
       } as unknown as Blob);
 
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", `${supabaseUrl}/storage/v1/object/plant-photos/${fileName}`);
+        xhr.open("POST", `${supabaseUrl}/storage/v1/object/plant-photos/${objectPath}`);
         xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
         xhr.setRequestHeader("apikey", process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!);
         xhr.setRequestHeader("x-upsert", "false");
@@ -157,11 +157,7 @@ export default function AddPlantScreen({
         xhr.send(formData);
       });
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("plant-photos").getPublicUrl(fileName);
-
-      setPhotoUrl(publicUrl);
+      setPhotoPath(objectPath);
       uploaded = true;
 
       const fnResp = await fetch(
@@ -172,7 +168,7 @@ export default function AddPlantScreen({
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ photo_url: publicUrl }),
+          body: JSON.stringify({ photo_path: objectPath }),
         }
       );
 
@@ -215,7 +211,7 @@ export default function AddPlantScreen({
         name: nickname,
         species,
         location,
-        photo_url: photoUrl,
+        photo_url: photoPath,
         last_watered_at: lastWateredAt,
         watering_frequency_days: careSuggestion?.watering_frequency_days ?? null,
       });
