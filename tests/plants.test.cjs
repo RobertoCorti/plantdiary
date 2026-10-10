@@ -20,6 +20,7 @@ function setup({ coords = null, weatherFails = false, insertError = null, eventE
       if (weatherFails) throw new Error('offline');
       return weather;
     } };
+    if (name === './photos') return { photoPathFromReference: (value) => value };
     throw new Error(`Unexpected dependency: ${name}`);
   } });
   const db = { from(table) { return {
