@@ -39,10 +39,13 @@
   "devDependencies": {
     "@types/react": "~19.2.2",
     "babel-preset-expo": "~57.0.0",
+    "expo-doctor": "1.20.5",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "doctor": "expo-doctor",
+    "config:check": "expo config --type public --json > /dev/null",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",

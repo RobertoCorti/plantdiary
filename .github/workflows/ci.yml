@@ -39,6 +39,10 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Check Expo project
+        run: npm run doctor
+      - name: Resolve public Expo config
+        run: npm run config:check
       - name: Check TypeScript
         run: npm run typecheck
       - name: Run Node tests
