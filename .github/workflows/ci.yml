@@ -24,6 +24,8 @@ jobs:
         run: npm ci
       - name: Check TypeScript
         run: npm run typecheck
+      - name: Run Node tests
+        run: node --test tests/*.test.cjs
 
   deno-check:
     name: Deno check
