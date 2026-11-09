@@ -3,6 +3,28 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-11-09
 
+### Issue #34 — CI concurrency and deterministic verification (implemented 2026-11-09)
+- Issue #34 is the second focused child issue under CI/CD parent Issue #17.
+  Work is on branch `issue/34-ci-concurrency-verification` in commit `bd3c375`
+  (`ci: cancel superseded runs and check whitespace`).
+- The CI workflow now cancels an older run when a newer commit targets the same
+  pull request or branch. Pull requests use separate concurrency groups, so work
+  on one pull request does not cancel another pull request's checks.
+- The Node job fetches full Git history and runs `git diff --check` over the
+  complete pull-request diff or pushed commit range. `actions/setup-node` reads
+  Node 24 from `.nvmrc`, keeping the repository and CI version declarations in
+  one place.
+- Existing job identifiers, displayed required-check names, TypeScript and test
+  commands, Deno verification, read-only permissions, and the lack of deployment
+  credentials remain unchanged.
+- Local verification passed: workflow YAML parsing; pull-request and push-range
+  simulations; TypeScript; all 39 Node tests; checks for every Edge Function;
+  all 21 Deno tests; and `git diff --check`.
+- Remaining delivery work: approve and commit this context update, push the
+  branch, open a pull request linked to Issue #34, observe hosted GitHub CI,
+  review and merge the pull request, then close Issue #34. Expo Doctor and
+  configuration validation remain the next planned child step under Issue #17.
+
 ### Issue #31 — run the complete Node test suite in CI (merged 2026-11-09)
 - Issue #17 is now the parent tracker for the staged CI/CD and release
   verification pipeline. Issue #31 is the first focused child issue and covers
