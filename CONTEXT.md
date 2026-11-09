@@ -3,24 +3,23 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-11-09
 
-### Issue #31 — run the complete Node test suite in CI (implemented 2026-11-09)
+### Issue #31 — run the complete Node test suite in CI (merged 2026-11-09)
 - Issue #17 is now the parent tracker for the staged CI/CD and release
   verification pipeline. Issue #31 is the first focused child issue and covers
   only enforcing the existing Node test suite in pull-request CI.
-- Work is on branch `issue/31-node-tests-ci`. Commit `d539f9c` (`ci: run Node
-  tests on pull requests`) adds `node --test tests/*.test.cjs` after TypeScript
-  in the existing Node CI job. The job identifier and displayed check name were
-  preserved so this change does not accidentally invalidate a branch-protection
-  rule that references the current check.
+- PR #32 merged to `main` as `f9dbdeb` and closed Issue #31. Commit `d539f9c`
+  (`ci: run Node tests on pull requests`) adds `node --test tests/*.test.cjs`
+  after TypeScript in the existing Node CI job. The job identifier and displayed
+  check name were preserved so this change does not accidentally invalidate a
+  branch-protection rule that references the current check.
 - The Node job still installs dependencies once with `npm ci`. The Deno job is
   unchanged, and the workflow receives no deployment credentials.
 - Verification passed with the project runtimes: TypeScript and all 39 Node
   tests under Node 24.22.2; checks for every Edge Function and all 21 shared
-  tests under Deno 2.9.6; YAML parsing; and `git diff --check`.
-- Remaining delivery work: approve and commit this context update, push the
-  branch, open a pull request linked to Issue #31, observe the hosted GitHub CI
-  run, review and merge the pull request, then close Issue #31. Later CI/CD
-  phases remain tracked by parent Issue #17.
+  tests under Deno 2.9.6; YAML parsing; `git diff --check`; and the hosted GitHub
+  CI run. Local `main` is synchronized with `origin/main` and clean.
+- Remaining CI/CD phases are tracked by parent Issue #17 and should continue as
+  separate, focused child issues.
 
 ### Issue #10 — private plant photos (implemented and production-verified 2026-10-10)
 - Work is on branch `issue/10-private-plant-photos`, based on local `main` with
