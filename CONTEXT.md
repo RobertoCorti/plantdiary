@@ -3,6 +3,29 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-11-09
 
+### Issue #37 — align Expo SDK 57 patch dependencies (implemented 2026-11-09)
+- Issue #37 is a prerequisite for adding Expo Doctor and configuration validation
+  to CI under parent Issue #17. Work is on branch
+  `issue/37-align-expo-57-dependencies` in commit `a6cc6c9` (`chore: align Expo
+  SDK 57 dependencies`).
+- Expo Doctor initially passed 20 of 21 checks and reported eight outdated SDK 57
+  packages. `@expo/ui`, `expo`, `expo-constants`, `expo-dev-client`,
+  `expo-image-picker`, `expo-location`, `expo-notifications`, and
+  `expo-splash-screen` now match Expo's SDK 57 patch recommendations. The app
+  remains on Expo SDK 57, React Native 0.86.3, and React 19.2.3.
+- Verification passed under Node 24 and Deno 2.9.6: clean `npm ci`; Expo Doctor
+  1.20.5 with 21 of 21 checks; public Expo config resolution; TypeScript; all 39
+  Node tests; checks for every Edge Function; all 21 Deno tests; iOS and Android
+  production bundle exports; dependency and lockfile validation; and `git diff
+  --check`.
+- npm currently reports 10 dependency advisories: 5 moderate, 4 high, and 1
+  critical. No automatic audit fix was applied because security remediation is
+  outside Issue #37 and requires separate review.
+- Remaining delivery work: approve and commit this context update, push the
+  branch, open a pull request linked to Issue #37, observe hosted GitHub CI,
+  review and merge the pull request, then close Issue #37. Afterward, create the
+  separate child issue that adds Expo Doctor and config resolution to CI.
+
 ### Issue #34 — CI concurrency and deterministic verification (merged 2026-11-09)
 - Issue #34 is the second focused child issue under CI/CD parent Issue #17.
   PR #35 merged to `main` as `01d88d7` and closed Issue #34. Commit `bd3c375`
