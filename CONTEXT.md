@@ -3,11 +3,11 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-11-09
 
-### Issue #37 — align Expo SDK 57 patch dependencies (implemented 2026-11-09)
+### Issue #37 — align Expo SDK 57 patch dependencies (merged 2026-11-09)
 - Issue #37 is a prerequisite for adding Expo Doctor and configuration validation
-  to CI under parent Issue #17. Work is on branch
-  `issue/37-align-expo-57-dependencies` in commit `a6cc6c9` (`chore: align Expo
-  SDK 57 dependencies`).
+  to CI under parent Issue #17. PR #38 merged to `main` as `d2de98c` and closed
+  Issue #37. Commit `a6cc6c9` (`chore: align Expo SDK 57 dependencies`) contains
+  the dependency alignment.
 - Expo Doctor initially passed 20 of 21 checks and reported eight outdated SDK 57
   packages. `@expo/ui`, `expo`, `expo-constants`, `expo-dev-client`,
   `expo-image-picker`, `expo-location`, `expo-notifications`, and
@@ -17,14 +17,12 @@
   1.20.5 with 21 of 21 checks; public Expo config resolution; TypeScript; all 39
   Node tests; checks for every Edge Function; all 21 Deno tests; iOS and Android
   production bundle exports; dependency and lockfile validation; and `git diff
-  --check`.
+  --check`. Both required hosted GitHub CI jobs also passed before the merge.
 - npm currently reports 10 dependency advisories: 5 moderate, 4 high, and 1
   critical. No automatic audit fix was applied because security remediation is
   outside Issue #37 and requires separate review.
-- Remaining delivery work: approve and commit this context update, push the
-  branch, open a pull request linked to Issue #37, observe hosted GitHub CI,
-  review and merge the pull request, then close Issue #37. Afterward, create the
-  separate child issue that adds Expo Doctor and config resolution to CI.
+- Local `main` is synchronized with `origin/main` and clean. The next CI/CD child
+  issue should add Expo Doctor and public-config resolution to pull-request CI.
 
 ### Issue #34 — CI concurrency and deterministic verification (merged 2026-11-09)
 - Issue #34 is the second focused child issue under CI/CD parent Issue #17.
