@@ -3,6 +3,29 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-11-09
 
+### Issue #40 — enforce Expo project validation in CI (implemented 2026-11-09)
+- Issue #40 is the Expo-validation child issue under CI/CD parent Issue #17 and
+  follows the dependency alignment completed in Issue #37. Work is on branch
+  `issue/40-enforce-expo-validation` in commit `4c84b19` (`ci: enforce Expo
+  project validation`).
+- `expo-doctor` 1.20.5, the version published under Expo's SDK 57 tag, is locked
+  as an exact development dependency. Package scripts run Doctor and resolve the
+  public Expo config while discarding the config output.
+- The existing Node CI job runs both Expo checks after `npm ci` and before
+  TypeScript and the Node tests. Its job identifier and displayed required-check
+  name remain unchanged. The checks receive no deployment credentials and do not
+  require ignored `.env` or `google-services.json` files.
+- Verification passed under Node 24 and Deno 2.9.6: clean `npm ci`; Expo Doctor
+  with 21 of 21 checks; public-config resolution; a clean-checkout simulation
+  without ignored configuration files; TypeScript; all 39 Node tests; checks for
+  every Edge Function; all 21 Deno tests; workflow YAML parsing; and `git diff
+  --check`.
+- npm still reports the 10 advisories recorded in Issue #37. No audit fix or
+  unrelated dependency change was included.
+- Remaining delivery work: approve and commit this context update, push the
+  branch, open a pull request linked to Issue #40, observe the hosted GitHub CI
+  run, review and merge the pull request, then close Issue #40.
+
 ### Issue #37 — align Expo SDK 57 patch dependencies (merged 2026-11-09)
 - Issue #37 is a prerequisite for adding Expo Doctor and configuration validation
   to CI under parent Issue #17. PR #38 merged to `main` as `d2de98c` and closed
