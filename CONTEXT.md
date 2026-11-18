@@ -3,13 +3,25 @@
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-11-18
 
-### Issue #12 — atomic, retry-safe watering (committed locally; rollout pending)
+### Issue #12 — Expo patch alignment (verified 2026-11-18)
+- Approved follow-up updates only the direct `expo` and `expo-constants`
+  dependencies, from 57.0.32 to 57.0.33 and 57.0.23 to 57.0.24 respectively.
+  The regenerated lockfile includes the accompanying Expo tooling changes.
+- Verification passed under Node 24.22.2: clean `npm ci`, Expo Doctor 21/21,
+  public Expo config resolution, TypeScript, all 54 Node tests, iOS and Android
+  production bundle exports, and whitespace checks. Deno 2.9.6 also passed
+  checks for every Edge Function and all 21 shared tests.
+- The earlier Expo Doctor patch-version blocker is resolved locally. Hosted CI,
+  manual migration `00012`, native rebuilds, and device checks remain pending.
+
+### Issue #12 — atomic, retry-safe watering (pushed; rollout pending)
 - Approved first slice covers Today Water, Water all, and watering from the
   plant profile. Implementation is committed on `issue/12-atomic-watering`:
   `ab84a70` adds Expo Crypto; `3fe1758` adds the RPC and SQL tests; `ed85904`
   adds client retry handling and Node tests; `2ebca60` connects Today;
-  `00b18a1` connects the profile. Issue #12 remains open; other care-history
-  mutations are outside this slice.
+  `00b18a1` connects the profile; `1950511` records the context. All six commits
+  are pushed to origin. Issue #12 remains open; other care-history mutations
+  are outside this slice.
 - New manual migration `00012_atomic_watering.sql` defines `record_watering`.
   It inserts the watering event and updates `last_watered_at` in one transaction,
   checks the authenticated owner's plant under existing RLS, serializes writes
@@ -36,14 +48,13 @@
   older dates, forced-update rollback, ownership, invalid inputs, missing
   identity, and anonymous access. Four concurrent identical transactions also
   produced exactly one event and the correct plant date.
-- Expo Doctor passes 20/21 checks with network access. The remaining check flags
-  unchanged dependencies: Expo 57.0.32 vs recommended ~57.0.33 and Constants
-  57.0.23 vs ~57.0.24. No unrelated patch upgrade was included.
+- Initial verification passed 20/21 Expo Doctor checks due to existing Expo and
+  Constants patch drift. The separately approved follow-up above resolves it.
 - Pending: apply migration `00012` manually before using the updated client;
   rebuild native binaries and verify Today,
   Water all, profile notes, offline retry, and restart recovery on devices.
-  Push the branch, open/review a PR, and merge after the required checks pass.
-  No hosted migration, deployment, native build, or push was performed.
+  Open/review a PR, and merge after the required checks pass.
+  No hosted migration, deployment, or native build was performed.
 - Remaining #12 slices: transactional frequency-proposal acceptance, plant
   creation/initial events, photo check-ins and upload cleanup, and deletion.
 
