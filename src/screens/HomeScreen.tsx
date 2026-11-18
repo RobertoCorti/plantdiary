@@ -136,10 +136,16 @@ export default function HomeScreen({ session, navigation }: Props) {
       prev.map((p) => (p.id === plant.id ? { ...p, last_watered_at: now } : p))
     );
     try {
-      await logWatering(supabase, plant.id, session.user.id);
+      const result = await logWatering(supabase, plant.id, session.user.id);
+      setPlants((prev) => prev.map((p) => p.id === plant.id
+        ? { ...p, last_watered_at: result.lastWateredAt } : p));
+      if (result.wasRetry) {
+        Alert.alert("Watering confirmed",
+          `Your watering from ${new Date(result.wateredAt).toLocaleString()} is saved. If you watered again since then, log it as a new watering.`);
+      }
     } catch {
-      Alert.alert("Watering Failed", "Could not log watering. Please try again.");
-      fetchPlants();
+      Alert.alert("Watering not confirmed", "Please retry to confirm the same watering safely.");
+      await fetchPlants();
     } finally {
       setWateringIds((prev) => {
         const next = new Set(prev);
@@ -162,18 +168,28 @@ export default function HomeScreen({ session, navigation }: Props) {
     const results = await Promise.allSettled(
       targets.map((p) => logWatering(supabase, p.id, session.user.id))
     );
+    setPlants((prev) => prev.map((plant) => {
+      const index = targets.findIndex((target) => target.id === plant.id);
+      const result = results[index];
+      return result?.status === "fulfilled"
+        ? { ...plant, last_watered_at: result.value.lastWateredAt } : plant;
+    }));
     const failed = results.filter((r) => r.status === "rejected").length;
+    const retried = results.filter((r) => r.status === "fulfilled" && r.value.wasRetry).length;
     setWateringIds((prev) => {
       const next = new Set(prev);
       for (const id of ids) next.delete(id);
       return next;
     });
-    if (failed > 0) {
+    if (failed > 0 || retried > 0) {
       Alert.alert(
-        "Some waterings failed",
-        `${failed} of ${targets.length} could not be logged. Refreshing.`
+        failed > 0 ? "Some waterings not confirmed" : "Earlier waterings confirmed",
+        [
+          failed > 0 ? `${failed} of ${targets.length} could not be confirmed. Retry those waterings safely.` : "",
+          retried > 0 ? `${retried} earlier watering(s) confirmed with their original dates. If you watered again since then, log a new watering.` : "",
+        ].filter(Boolean).join("\n")
       );
-      fetchPlants();
+      await fetchPlants();
     }
   }
 

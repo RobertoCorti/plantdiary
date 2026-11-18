@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,6 +20,7 @@ import {
   acceptFrequencyProposal,
   fetchPlantEvents,
   logEvent,
+  logWatering,
 } from "../lib/events";
 import { deletePlant } from "../lib/plants";
 import { proposeFrequency } from "../lib/learning";
@@ -190,6 +191,7 @@ export default function PlantProfileScreen({
     useState<LoggableEventType>("watered");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] =
     useState<AIPhotoAnalysisResult | null>(null);
@@ -305,28 +307,33 @@ export default function PlantProfileScreen({
   const weekGroups = useMemo(() => groupByWeek(events), [events]);
 
   async function handleLogEvent() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
-      await logEvent(
-        supabase,
-        plantId,
-        session.user.id,
-        selectedEventType,
-        notes.trim() || undefined
-      );
-      if (selectedEventType === "watered" && plant) {
-        setPlant({ ...plant, last_watered_at: new Date().toISOString() });
+      if (selectedEventType === "watered") {
+        const result = await logWatering(supabase, plantId, session.user.id, notes.trim() || undefined);
+        if (plant) setPlant({ ...plant, last_watered_at: result.lastWateredAt });
+        if (result.wasRetry) {
+          Alert.alert("Watering confirmed",
+            `Your watering from ${new Date(result.wateredAt).toLocaleString()} is saved. If you watered again since then, log it as a new watering.`);
+        }
+      } else {
+        await logEvent(supabase, plantId, session.user.id, selectedEventType, notes.trim() || undefined);
       }
-      const updated = await fetchPlantEvents(supabase, plantId);
-      setEvents(updated);
       setShowLogModal(false);
       setNotes("");
       setSelectedEventType("watered");
-    } catch {
-      Alert.alert("Error", "Could not save event. Please try again.");
+    } catch (error) {
+      Alert.alert("Could not confirm event", error instanceof Error
+        ? error.message : "Please try again. Watering retries confirm the same action safely.");
+      return;
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
+    // A failed refresh must not invite another save of an already saved event.
+    await fetchData();
   }
 
   async function handleAcceptProposal() {
@@ -751,7 +758,7 @@ export default function PlantProfileScreen({
         visible={showLogModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowLogModal(false)}
+        onRequestClose={() => { if (!submittingRef.current) setShowLogModal(false); }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -768,6 +775,7 @@ export default function PlantProfileScreen({
                       selected && styles.typeOptionSelected,
                     ]}
                     onPress={() => setSelectedEventType(type)}
+                    disabled={submitting}
                   >
                     <EventIcon type={iconForEvent(type)} size={36} />
                     <Text
@@ -789,12 +797,14 @@ export default function PlantProfileScreen({
               placeholderTextColor={colors.muted}
               value={notes}
               onChangeText={setNotes}
+              editable={!submitting}
               multiline
             />
 
             <View style={styles.modalActions}>
               <Pressable
                 style={styles.secondaryButton}
+                disabled={submitting}
                 onPress={() => {
                   setShowLogModal(false);
                   setNotes("");

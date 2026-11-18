@@ -15,6 +15,9 @@ function loadEvents(homeCoords) {
   vm.runInNewContext(js, {
     exports,
     require(name) {
+      if (name === "expo-secure-store") return {};
+      if (name === "expo-crypto") return {};
+      if (name === "react-native") return { Platform: { OS: "ios" } };
       if (name === "./location") return { getHomeCoords: async () => homeCoords };
       if (name === "./weather") return { fetchWeather: async () => {
         weatherCalls += 1;
