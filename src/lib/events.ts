@@ -1,4 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import * as SecureStore from "expo-secure-store";
+import { randomUUID } from "expo-crypto";
+import { Platform } from "react-native";
 import type { FrequencyProposal, PlantEvent, WeatherData } from "../types";
 import { fetchWeather } from "./weather";
 import { getHomeCoords } from "./location";
@@ -8,9 +11,9 @@ async function captureWeather(
   supabase: SupabaseClient,
   userId: string
 ): Promise<WeatherData | null> {
-  const coords = await getHomeCoords(supabase, userId);
-  if (!coords) return null;
   try {
+    const coords = await getHomeCoords(supabase, userId);
+    if (!coords) return null;
     const w = await fetchWeather(coords.lat, coords.lon);
     log.info("weather", "Captured for event", w);
     return w;
@@ -20,30 +23,99 @@ async function captureWeather(
   }
 }
 
-export async function logWatering(
+type PendingWatering = {
+  id: string;
+  wateredAt: string;
+  weather: WeatherData | null;
+  notes: string | null;
+};
+
+export type WateringSaveResult = {
+  lastWateredAt: string;
+  wateredAt: string;
+  wasRetry: boolean;
+};
+
+const wateringInFlight = new Map<string, {
+  notes: string | null;
+  request: Promise<WateringSaveResult>;
+}>();
+
+const PENDING_NOTES_MESSAGE =
+  "An earlier watering is awaiting confirmation. Retry it from Today before adding different notes.";
+
+/** A pending action survives screen changes and restarts until confirmed. */
+async function saveWatering(
   supabase: SupabaseClient,
   plantId: string,
-  userId: string
-): Promise<void> {
-  const now = new Date().toISOString();
-  const weather = await captureWeather(supabase, userId);
+  userId: string,
+  notes?: string
+): Promise<WateringSaveResult> {
+  const key = `plantdiary.watering.${userId}.${plantId}`;
+  const saved = Platform.OS === "web"
+    ? localStorage.getItem(key)
+    : await SecureStore.getItemAsync(key);
+  let pending: PendingWatering;
+  if (saved) {
+    pending = JSON.parse(saved);
+    if (!pending || typeof pending.id !== "string" ||
+      !Number.isFinite(Date.parse(pending.wateredAt)) ||
+      (pending.notes !== null && typeof pending.notes !== "string") ||
+      !("weather" in pending)) {
+      throw new Error("Could not read the pending watering. Please try again.");
+    }
+    if (notes?.trim() && notes.trim() !== pending.notes) {
+      throw new Error(PENDING_NOTES_MESSAGE);
+    }
+  } else {
+    pending = {
+      id: randomUUID(),
+      wateredAt: new Date().toISOString(),
+      weather: await captureWeather(supabase, userId),
+      notes: notes?.trim() || null,
+    };
+    // Do not send anything until the retry ID and original context are durable.
+    const value = JSON.stringify(pending);
+    if (Platform.OS === "web") localStorage.setItem(key, value);
+    else await SecureStore.setItemAsync(key, value);
+  }
 
-  const { error: eventError } = await supabase.from("plant_events").insert({
-    plant_id: plantId,
-    user_id: userId,
-    event_type: "watered",
-    weather,
-    created_at: now,
+  const { data, error } = await supabase.rpc("record_watering", {
+    p_event_id: pending.id,
+    p_plant_id: plantId,
+    p_watered_at: pending.wateredAt,
+    p_weather: pending.weather,
+    p_notes: pending.notes,
   });
+  if (error) throw error;
+  if (typeof data !== "string" || !Number.isFinite(Date.parse(data))) {
+    throw new Error("Could not confirm watering. Please try again.");
+  }
 
-  if (eventError) throw eventError;
+  if (Platform.OS === "web") localStorage.removeItem(key);
+  else await SecureStore.deleteItemAsync(key);
+  return { lastWateredAt: data, wateredAt: pending.wateredAt, wasRetry: saved !== null };
+}
 
-  const { error: updateError } = await supabase
-    .from("plants")
-    .update({ last_watered_at: now, updated_at: now })
-    .eq("id", plantId);
-
-  if (updateError) throw updateError;
+export function logWatering(
+  supabase: SupabaseClient,
+  plantId: string,
+  userId: string,
+  notes?: string
+): Promise<WateringSaveResult> {
+  const key = `${userId}.${plantId}`;
+  const inFlight = wateringInFlight.get(key);
+  if (inFlight) {
+    if (notes?.trim() && notes.trim() !== inFlight.notes) {
+      return Promise.reject(new Error(PENDING_NOTES_MESSAGE));
+    }
+    return inFlight.request;
+  }
+  const request = saveWatering(supabase, plantId, userId, notes).finally(() => {
+    wateringInFlight.delete(key);
+  });
+  wateringInFlight.set(key, { notes: notes?.trim() || null, request });
+  return request;
 }
 
 export async function logEvent(
@@ -55,6 +127,10 @@ export async function logEvent(
   photoUrl?: string,
   aiAnalysis?: string
 ): Promise<void> {
+  if (eventType === "watered") {
+    await logWatering(supabase, plantId, userId, notes);
+    return;
+  }
   const now = new Date().toISOString();
   const weather = await captureWeather(supabase, userId);
 
@@ -70,15 +146,6 @@ export async function logEvent(
   });
 
   if (eventError) throw eventError;
-
-  if (eventType === "watered") {
-    const { error: updateError } = await supabase
-      .from("plants")
-      .update({ last_watered_at: now, updated_at: now })
-      .eq("id", plantId);
-
-    if (updateError) throw updateError;
-  }
 }
 
 export async function acceptFrequencyProposal(
