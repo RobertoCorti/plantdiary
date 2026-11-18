@@ -1,7 +1,51 @@
 # PlantDiary — Context for AI Coding Agents
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-11-10
+## Last session: 2026-11-18
+
+### Issue #12 — atomic, retry-safe watering (committed locally; rollout pending)
+- Approved first slice covers Today Water, Water all, and watering from the
+  plant profile. Implementation is committed on `issue/12-atomic-watering`:
+  `ab84a70` adds Expo Crypto; `3fe1758` adds the RPC and SQL tests; `ed85904`
+  adds client retry handling and Node tests; `2ebca60` connects Today;
+  `00b18a1` connects the profile. Issue #12 remains open; other care-history
+  mutations are outside this slice.
+- New manual migration `00012_atomic_watering.sql` defines `record_watering`.
+  It inserts the watering event and updates `last_watered_at` in one transaction,
+  checks the authenticated owner's plant under existing RLS, serializes writes
+  per plant, and deduplicates retries using the existing event primary key.
+  Reused IDs with different content are rejected; older requests cannot move
+  the plant's last-watered date backwards. Anonymous execution is revoked.
+- The client retains a pending watering ID, original timestamp, notes, and
+  weather in account/plant-scoped SecureStore (localStorage on web) before
+  submission. Failed or ambiguous requests reuse that payload across screen
+  changes and app restarts. Concurrent calls for the same plant share a request.
+  Confirmed actions clear their pending record. Changed notes cannot silently
+  replace an unresolved watering; retry from Today first in that case.
+- All three entry points use the RPC and its returned plant date. Recovered
+  attempts explicitly confirm their original date. Water all keeps each plant
+  independent. The profile closes the saved-event form before refreshing, so a
+  refresh failure does not invite another save. Missing location/weather still
+  permits the event with null weather.
+- Added SDK-compatible `expo-crypto` 57.0.4 for UUID generation. Existing native
+  development/preview binaries need rebuilding; Expo Go includes the module.
+- Verification passed under Node 24.22.2: TypeScript, all 54 Node tests, public
+  Expo config resolution, iOS and Android production bundle exports, and
+  whitespace checks. SQL tests passed in disposable PostgreSQL 16 with simulated
+  Supabase auth/RLS: successful context persistence, exact retry, ID conflicts,
+  older dates, forced-update rollback, ownership, invalid inputs, missing
+  identity, and anonymous access. Four concurrent identical transactions also
+  produced exactly one event and the correct plant date.
+- Expo Doctor passes 20/21 checks with network access. The remaining check flags
+  unchanged dependencies: Expo 57.0.32 vs recommended ~57.0.33 and Constants
+  57.0.23 vs ~57.0.24. No unrelated patch upgrade was included.
+- Pending: apply migration `00012` manually before using the updated client;
+  rebuild native binaries and verify Today,
+  Water all, profile notes, offline retry, and restart recovery on devices.
+  Push the branch, open/review a PR, and merge after the required checks pass.
+  No hosted migration, deployment, native build, or push was performed.
+- Remaining #12 slices: transactional frequency-proposal acceptance, plant
+  creation/initial events, photo check-ins and upload cleanup, and deletion.
 
 ### Issue #40 — enforce Expo project validation in CI (merged 2026-11-09)
 - Issue #40 is the Expo-validation child issue under CI/CD parent Issue #17 and
