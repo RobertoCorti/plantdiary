@@ -1,13 +1,11 @@
-# PlantDiary — Context for AI Coding Agents
-
-## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-11-21
 
 ### Issue #55 — in-app feedback inbox (implemented and manually verified 2026-11-21)
-- Work is on branch `issue/55-feedback-inbox` in three reviewed commits:
+- Work is on branch `issue/55-feedback-inbox` in four reviewed commits:
   `d925347` adds the protected feedback schema and SQL verification;
-  `fd43fc8` adds the submission client and focused tests; and `5886cce` adds
-  the Settings entry, feedback form, and success state.
+  `fd43fc8` adds the submission client and focused tests; `5886cce` adds
+  the Settings entry, feedback form, and success state; and `486ee51` records
+  the implementation context and remaining delivery work.
 - Manual migration `00013_feedback_submissions.sql` defines the
   `feedback_submissions` review inbox. Authenticated users may insert feedback
   only for their own account, with a `bug`, `ux`, or `idea` category and a
@@ -30,9 +28,36 @@
   anonymous rejection, app read/update/delete denial, and reviewer triage.
   Roberto also confirmed the feature works in the app.
 - The coding agent did not apply a hosted migration or perform a deployment.
-  Remaining delivery work is to commit this context update, push the branch,
-  open and review a pull request, merge it, and close Issue #55. Confirm the
-  manual migration is present in the target Supabase project before release.
+  PR #56 is open as a draft. Before merge, document the Supabase review and
+  GitHub issue-promotion workflow, attach a UI screenshot or recording, and
+  confirm migration `00013` is present in the target Supabase project. Then
+  mark the PR ready, review and merge it, and close Issue #55.
+
+### Session handoff — watering delivered; next priority is production auth
+- PR #48 merged as `cbad027`. Hosted Node/Deno CI and CodeQL checks passed.
+  Local `main` was fast-forwarded to the merge commit.
+- Roberto manually applied migration `00012` in hosted Supabase and confirmed
+  the `record_watering(uuid,uuid,timestamptz,jsonb,text)` function exists.
+- Roberto confirmed Today watering in iOS Simulator, then showed two watering
+  events on the test plant with matching plant/latest-event timestamps and
+  `dates_match = true`. He subsequently confirmed the offline save/reconnect/
+  retry checklist passed. No physical-device or batch/restart result is inferred.
+- With Roberto's approval, #12 was narrowed to watering and closed. Unfinished
+  scope is preserved in #49 (frequency acceptance), #50 (plant creation),
+  #51 (photo check-in reliability), #52 (deletion), and #53 (remaining watering
+  notes, batch, restart, standalone iOS, and Android verification). #51 is linked
+  to existing longitudinal-photo issue #21 to coordinate overlapping cleanup.
+- All five follow-ups retain the Production beta milestone and P0 triage in
+  their bodies. Project fields/items could not be checked or updated: the CLI
+  token lacks `read:project`, and the in-app browser is signed out. Do not assume
+  #12 is marked Done on the Project or that #49-#53 were automatically added.
+- Reviewed all 16 open issues against the documented Prod Launch goals. The
+  recommended next session is #9 (production authentication/account lifecycle):
+  verify production email confirmation and recovery readiness, then propose one
+  small approved change. Safe beta access precedes widening tester enrollment;
+  reliable personal-history capture remains the foundation for Day 30.
+- No next-issue implementation, reprioritization, or new automation was started.
+  This handoff documentation remains subject to result and commit approval.
 
 ### Issue #12 — Expo patch alignment (verified 2026-11-18)
 - Approved follow-up updates only the direct `expo` and `expo-constants`
@@ -42,17 +67,17 @@
   public Expo config resolution, TypeScript, all 54 Node tests, iOS and Android
   production bundle exports, and whitespace checks. Deno 2.9.6 also passed
   checks for every Edge Function and all 21 shared tests.
-- The earlier Expo Doctor patch-version blocker is resolved locally. Hosted CI,
-  manual migration `00012`, native rebuilds, and device checks remain pending.
+- The earlier Expo Doctor patch-version blocker is resolved. Hosted CI passed
+  and migration `00012` was applied. Remaining native/device checks are in #53.
 
-### Issue #12 — atomic, retry-safe watering (pushed; rollout pending)
+### Issue #12 — atomic, retry-safe watering (merged; watering issue closed)
 - Approved first slice covers Today Water, Water all, and watering from the
   plant profile. Implementation is committed on `issue/12-atomic-watering`:
   `ab84a70` adds Expo Crypto; `3fe1758` adds the RPC and SQL tests; `ed85904`
   adds client retry handling and Node tests; `2ebca60` connects Today;
   `00b18a1` connects the profile; `1950511` records the context. All six commits
-  are pushed to origin. Issue #12 remains open; other care-history mutations
-  are outside this slice.
+  are pushed to origin. PR #48 merged this slice and the Expo patch follow-up.
+  Issue #12 is closed; the other care-history mutations are tracked separately.
 - New manual migration `00012_atomic_watering.sql` defines `record_watering`.
   It inserts the watering event and updates `last_watered_at` in one transaction,
   checks the authenticated owner's plant under existing RLS, serializes writes
@@ -81,13 +106,13 @@
   produced exactly one event and the correct plant date.
 - Initial verification passed 20/21 Expo Doctor checks due to existing Expo and
   Constants patch drift. The separately approved follow-up above resolves it.
-- Pending: apply migration `00012` manually before using the updated client;
-  rebuild native binaries and verify Today,
-  Water all, profile notes, offline retry, and restart recovery on devices.
-  Open/review a PR, and merge after the required checks pass.
-  No hosted migration, deployment, or native build was performed.
-- Remaining #12 slices: transactional frequency-proposal acceptance, plant
-  creation/initial events, photo check-ins and upload cleanup, and deletion.
+- Migration `00012` is installed and basic hosted watering/offline retry was
+  confirmed in iOS Simulator. Native rebuilds and the remaining manual checks
+  are tracked in #53. No Edge Function deployment or native build was performed
+  by the agent.
+- Remaining original #12 scope: frequency-proposal acceptance (#49), plant
+  creation/initial events (#50), photo check-ins/upload cleanup (#51), and
+  deletion (#52).
 
 ### Issue #40 — enforce Expo project validation in CI (merged 2026-11-09)
 - Issue #40 is the Expo-validation child issue under CI/CD parent Issue #17 and
