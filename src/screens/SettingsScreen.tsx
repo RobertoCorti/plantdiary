@@ -125,6 +125,13 @@ export default function SettingsScreen({ session, navigation }: Props) {
               value={`Version ${Constants.expoConfig?.version ?? "1.0.0"}`}
             />
             <SettingsRow
+              icon="feedback"
+              title="Send feedback"
+              detail="Report a problem or share an idea"
+              divided
+              onPress={() => navigation.navigate("Feedback")}
+            />
+            <SettingsRow
               icon="replay"
               title="Replay onboarding"
               detail="See the introduction again"
@@ -183,7 +190,7 @@ function SettingsRow({
   onPress,
   divided = false,
 }: {
-  icon: "bell" | "info" | "replay";
+  icon: "bell" | "info" | "feedback" | "replay";
   title: string;
   detail?: string;
   value?: string;
@@ -198,6 +205,8 @@ function SettingsRow({
           <BellIcon />
         ) : icon === "info" ? (
           <InfoIcon />
+        ) : icon === "feedback" ? (
+          <FeedbackIcon />
         ) : (
           <Host matchContents>
             <Icon name={replayIcon} size={19} color={colors.fern} />
@@ -254,6 +263,20 @@ function InfoIcon() {
     <Svg width={19} height={19} viewBox="0 0 24 24" fill="none">
       <Circle cx={12} cy={12} r={9} stroke={colors.fern} strokeWidth={1.7} />
       <Path d="M12 11v6M12 7.5v.5" stroke={colors.fern} strokeWidth={1.7} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function FeedbackIcon() {
+  return (
+    <Svg width={19} height={19} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M20 11.5a7.5 7.5 0 01-8 7.5 8.8 8.8 0 01-3.5-.7L4 20l1.5-4a7.1 7.1 0 01-1.5-4.5A7.5 7.5 0 0112 4a7.5 7.5 0 018 7.5z"
+        stroke={colors.fern}
+        strokeWidth={1.7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   );
 }

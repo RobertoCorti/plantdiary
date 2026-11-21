@@ -45,6 +45,7 @@ import PlantJournalScreen from "./src/screens/PlantJournalScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import NotificationSettingsScreen from "./src/screens/NotificationSettingsScreen";
+import FeedbackScreen from "./src/screens/FeedbackScreen";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* already prevented */
@@ -60,6 +61,7 @@ export type RootStackParamList = {
   OnboardingReplay: undefined;
   Settings: undefined;
   NotificationSettings: undefined;
+  Feedback: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -306,6 +308,14 @@ export default function App() {
                   >
                 ) => (
                   <NotificationSettingsScreen
+                    session={session}
+                    navigation={props.navigation}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="Feedback">
+                {(props: NativeStackScreenProps<RootStackParamList, "Feedback">) => (
+                  <FeedbackScreen
                     session={session}
                     navigation={props.navigation}
                   />
