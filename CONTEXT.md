@@ -1,6 +1,9 @@
+# PlantDiary — Context for AI Coding Agents
+
+## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
 ## Last session: 2026-11-21
 
-### Issue #55 — in-app feedback inbox (implemented and manually verified 2026-11-21)
+### Issue #55 — in-app feedback inbox (merged and production-verified 2026-11-21)
 - Work is on branch `issue/55-feedback-inbox` in four reviewed commits:
   `d925347` adds the protected feedback schema and SQL verification;
   `fd43fc8` adds the submission client and focused tests; `5886cce` adds
@@ -27,11 +30,14 @@
   to Node 24. PostgreSQL 16 verification passed for ownership, constraints,
   anonymous rejection, app read/update/delete denial, and reviewer triage.
   Roberto also confirmed the feature works in the app.
-- The coding agent did not apply a hosted migration or perform a deployment.
-  PR #56 is open as a draft. Before merge, document the Supabase review and
-  GitHub issue-promotion workflow, attach a UI screenshot or recording, and
-  confirm migration `00013` is present in the target Supabase project. Then
-  mark the PR ready, review and merge it, and close Issue #55.
+- PR #56 merged into `main` as `6744819`; all hosted CI and CodeQL checks passed,
+  and Issue #55 closed automatically.
+- Roberto manually applied migration `00013_feedback_submissions.sql` in the
+  hosted Supabase project. Dashboard verification confirmed RLS, the owner-only
+  insert policy, authenticated `INSERT`-only access, full service-role access,
+  and both required indexes. A real iOS submission stored its category, message,
+  app and platform context with `status = 'new'` and `review_note = null`,
+  verifying the complete app-to-database path.
 
 ### Session handoff — watering delivered; next priority is production auth
 - PR #48 merged as `cbad027`. Hosted Node/Deno CI and CodeQL checks passed.
