@@ -1,7 +1,38 @@
 # PlantDiary — Context for AI Coding Agents
 
 ## Current milestone: N4 — Plant Journal View (COMPLETE — narrative half shipped 2026-08-30)
-## Last session: 2026-11-18
+## Last session: 2026-11-21
+
+### Issue #55 — in-app feedback inbox (implemented and manually verified 2026-11-21)
+- Work is on branch `issue/55-feedback-inbox` in three reviewed commits:
+  `d925347` adds the protected feedback schema and SQL verification;
+  `fd43fc8` adds the submission client and focused tests; and `5886cce` adds
+  the Settings entry, feedback form, and success state.
+- Manual migration `00013_feedback_submissions.sql` defines the
+  `feedback_submissions` review inbox. Authenticated users may insert feedback
+  only for their own account, with a `bug`, `ux`, or `idea` category and a
+  trimmed message of at most 2,000 characters. App users cannot read, update,
+  or delete submissions. Reviewer-only status and notes remain protected for
+  service-role workflows.
+- `submitFeedback` validates and normalizes the payload before inserting it. It
+  stores the app version, platform, and platform version automatically without
+  exposing reviewer fields to the client. Focused tests cover payload shape,
+  optional context, invalid input, Unicode length, and database failures.
+- Settings now includes **Send feedback** under PlantDiary. The focused screen
+  offers three plain-language categories, a multiline message with a Unicode-
+  aware 2,000-character counter, accessible radio controls, disabled and busy
+  submission states, retryable inline failure feedback that preserves the
+  draft, and a dedicated thank-you state after a successful submission.
+- Verification passed under the available Node 25.4.0 shell: TypeScript, all 61
+  Node tests, Expo Doctor 21/21, public Expo config resolution, iOS and Android
+  production bundle exports, and whitespace checks. The project remains pinned
+  to Node 24. PostgreSQL 16 verification passed for ownership, constraints,
+  anonymous rejection, app read/update/delete denial, and reviewer triage.
+  Roberto also confirmed the feature works in the app.
+- The coding agent did not apply a hosted migration or perform a deployment.
+  Remaining delivery work is to commit this context update, push the branch,
+  open and review a pull request, merge it, and close Issue #55. Confirm the
+  manual migration is present in the target Supabase project before release.
 
 ### Issue #12 — Expo patch alignment (verified 2026-11-18)
 - Approved follow-up updates only the direct `expo` and `expo-constants`
